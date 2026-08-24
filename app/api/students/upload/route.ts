@@ -51,25 +51,17 @@ const MONTH_NAMES: Record<string, number> = {
   sep: 9, sept: 9, september: 9, oct: 10, october: 10, nov: 11, november: 11, dec: 12, december: 12
 };
 
-// Robust date parsing, tried in order of likelihood for this dataset.
-// JavaScript's native `new Date(string)` is NOT trusted here at all —
-// it mishandles ambiguous slash dates (assumes US MM/DD/YYYY) AND fails
-// outright on ordinal suffixes like "5th"/"26th", both of which showed
-// up in real data from this tracker.
 function parseDate(raw: string | undefined): string | null {
   if (!raw) return null;
-  // Strip ordinal suffixes up front (5th -> 5, 26th -> 26, 1st -> 1, 3rd -> 3, 22nd -> 22)
   const trimmed = String(raw).trim().replace(/(\d+)(st|nd|rd|th)\b/gi, "$1");
   if (!trimmed) return null;
 
-  // Already ISO: YYYY-MM-DD (optionally with a time component)
   const iso = trimmed.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
   if (iso) {
     const [, y, m, d] = iso;
     return `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
   }
 
-  // DD/MM/YYYY, DD-MM-YYYY, or DD.MM.YYYY
   const dmy = trimmed.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})$/);
   if (dmy) {
     let [, day, month, year] = dmy;
@@ -82,7 +74,6 @@ function parseDate(raw: string | undefined): string | null {
     return null;
   }
 
-  // "5 Dec 2025", "5 December 2025" — day, month name, year
   const dMonY = trimmed.match(/^(\d{1,2})\s+([A-Za-z]+)\.?\s+(\d{4})$/);
   if (dMonY) {
     const [, day, monthName, year] = dMonY;
@@ -90,7 +81,6 @@ function parseDate(raw: string | undefined): string | null {
     if (m) return `${year}-${String(m).padStart(2, "0")}-${day.padStart(2, "0")}`;
   }
 
-  // "December 5, 2025" / "Dec 5 2025" — month name, day, year
   const monDY = trimmed.match(/^([A-Za-z]+)\.?\s+(\d{1,2}),?\s+(\d{4})$/);
   if (monDY) {
     const [, monthName, day, year] = monDY;
@@ -98,7 +88,6 @@ function parseDate(raw: string | undefined): string | null {
     if (m) return `${year}-${String(m).padStart(2, "0")}-${day.padStart(2, "0")}`;
   }
 
-  // Excel serial date number (e.g. a cell that lost its date formatting on export)
   if (/^\d{4,6}$/.test(trimmed)) {
     const serial = parseInt(trimmed, 10);
     const excelEpoch = new Date(Date.UTC(1899, 11, 30));
@@ -106,7 +95,6 @@ function parseDate(raw: string | undefined): string | null {
     if (!isNaN(d.getTime())) return d.toISOString().slice(0, 10);
   }
 
-  // Last resort — anything else the native parser can actually handle safely.
   const d = new Date(trimmed);
   return isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10);
 }
@@ -206,6 +194,15 @@ export async function POST(req: NextRequest) {
           .select("id").single();
         if (studentError) throw studentError;
         student = created;
+      }
+
+      // Explicit guard: by this point student should always be set (either
+      // found-and-updated or freshly inserted above), but TypeScript's
+      // strict build check can't prove that across the branching logic on
+      // its own — this satisfies the compiler and is a legitimate runtime
+      // safety net besides.
+      if (!student) {
+        throw new Error("Failed to create or locate student record");
       }
 
       const graduationDate = parseDate(row["Graduation Date"]);
