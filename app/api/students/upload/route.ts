@@ -245,11 +245,6 @@ export async function POST(req: NextRequest) {
 import { NextRequest, NextResponse } from "next/server";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
 
-// Normalizes messy real-world spelling/casing variants into your 12
-// canonical program names. Without this, every distinct spelling in a
-// raw uploaded CSV creates its own separate program row — which is
-// exactly what fragmented your program counts before. Extend this map
-// whenever a new variant shows up.
 const PROGRAM_NORMALIZATION: Record<string, string> = {
   "foundations of software development": "Foundations of Software Development",
   "foundation of software development": "Foundations of Software Development",
@@ -272,7 +267,7 @@ const PROGRAM_NORMALIZATION: Record<string, string> = {
   "cybersecurity": "Cybersecurity",
   "cyber security": "Cybersecurity",
   "blockchain development": "Blockchain Development",
-  "product development": "Blockchain Development", // confirmed mislabel, per team
+  "product development": "Blockchain Development",
   "product design": "Product Design (UX/UI)",
   "product design (ux/ui)": "Product Design (UX/UI)",
   "product management": "Product Management",
@@ -366,11 +361,6 @@ function parseDate(raw: string | undefined): string | null {
 const DEFAULT_ALLOCATION_WINDOW_DAYS = 30;
 
 export async function POST(req: NextRequest) {
-  // --- Admin-only gate ---
-  // The rest of this route uses the admin client (service role, bypasses
-  // RLS) for performance on bulk writes — which means this check is the
-  // ONLY thing standing between "any signed-in user" and "can bulk-write
-  // the whole students table." It has to happen before anything else.
   const cookieClient = createClient();
   const { data: { user } } = await cookieClient.auth.getUser();
   if (!user) {
@@ -511,12 +501,6 @@ export async function POST(req: NextRequest) {
       const { error: placementError } = await supabase.from("placements").upsert(placementPayload, { onConflict: "student_id" });
       if (placementError) throw placementError;
 
-      // --- "Assigned" column: pre-map staff to students before upload ---
-      // Only creates an allocation if the student doesn't already have an
-      // active one — never overwrites an existing assignment. Matched by
-      // staff name (case-insensitive). Deadline defaults to 30 days out
-      // since the sheet doesn't specify one — adjust DEFAULT_ALLOCATION_WINDOW_DAYS
-      // above if you'd rather a different default.
       const assignedName = row["Assigned"]?.trim();
       if (assignedName) {
         const { data: existingAllocation } = await supabase
@@ -527,8 +511,12 @@ export async function POST(req: NextRequest) {
           let staffId = staffByNameCache.get(cacheKey);
           if (staffId === undefined) {
             const { data: staffMatch } = await supabase.from("staff_users").select("id").ilike("name", assignedName).maybeSingle();
+            // staffMatch?.id can technically be `undefined` (not just absent),
+            // which the cache's declared value type (string | null) doesn't
+            // accept — coerce explicitly before storing, since the previous
+            // ?? here only guarded the outer expression, not this exact spot.
             staffId = staffMatch?.id ?? null;
-            staffByNameCache.set(cacheKey, staffId);
+            staffByNameCache.set(cacheKey, staffId ?? null);
           }
           if (staffId) {
             const deadline = new Date(Date.now() + DEFAULT_ALLOCATION_WINDOW_DAYS * 86400000).toISOString().slice(0, 10);
