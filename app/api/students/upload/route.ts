@@ -281,6 +281,32 @@ function normalizeProgramName(raw: string | undefined): string {
   return PROGRAM_NORMALIZATION[key] ?? trimmed;
 }
 
+// If the "Cohort" cell is actually a raw date/timestamp (a real recurring
+// data issue — some source rows had the cohort's start date exported into
+// this column instead of a label), reformat it into a clean "Mon YYYY"
+// label instead of storing the ugly raw string. Anything that's already
+// a normal label ("Mop Up Jan 2026", "Sep 2025") doesn't match either
+// pattern and passes through unchanged.
+function normalizeCohortName(raw: string | undefined): string {
+  const trimmed = (raw ?? "").trim();
+  if (!trimmed) return "Unspecified Cohort";
+
+  const iso = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) {
+    const d = new Date(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3]));
+    if (!isNaN(d.getTime())) return d.toLocaleString("en-US", { month: "short", year: "numeric" });
+  }
+  const dmy = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (dmy) {
+    const day = parseInt(dmy[1], 10), month = parseInt(dmy[2], 10), year = parseInt(dmy[3], 10);
+    if (month >= 1 && month <= 12) {
+      const d = new Date(year, month - 1, day);
+      if (!isNaN(d.getTime())) return d.toLocaleString("en-US", { month: "short", year: "numeric" });
+    }
+  }
+  return trimmed;
+}
+
 function mapStatusAndEmploymentType(raw: string | undefined): { status: string; employmentType: string | null } {
   const v = (raw ?? "").trim().toLowerCase();
   if (!v) return { status: "awaiting_placement", employmentType: null };
@@ -403,7 +429,7 @@ export async function POST(req: NextRequest) {
         programCache.set(programName, programId!);
       }
 
-      const cohortName = row["Cohort"]?.trim() || "Unspecified Cohort";
+      const cohortName = normalizeCohortName(row["Cohort"]);
       const cohortKey = `${programId}:${cohortName}`;
       let cohortId = cohortCache.get(cohortKey);
       if (!cohortId) {
@@ -477,11 +503,6 @@ export async function POST(req: NextRequest) {
       if (!graduationDate) {
         errors.push(`Row ${i + 2} (${fullName}): couldn't parse Graduation Date "${row["Graduation Date"] ?? ""}", enrollment skipped.`);
       } else {
-        // Look for an existing enrollment for THIS student in THIS SAME
-        // PROGRAM (regardless of which cohort) — not just this exact
-        // cohort. This is what prevents "re-enrolled in a Mop Up cohort"
-        // from creating a second, duplicate-looking row for the same
-        // person in the Student Directory.
         const { data: existingForProgram } = await supabase
           .from("enrollments")
           .select("id, graduation_date, cohorts!inner(program_id)")
@@ -492,10 +513,6 @@ export async function POST(req: NextRequest) {
           const { error: enrollError } = await supabase.from("enrollments").insert({ student_id: student.id, cohort_id: cohortId, graduation_date: graduationDate });
           if (enrollError) throw enrollError;
         } else {
-          // Already enrolled in this program. Only replace it if the new
-          // row's graduation date is EARLIER than what's on file — the
-          // earlier cohort is treated as authoritative, per instruction.
-          // Otherwise this row is a later re-enrollment and is ignored.
           const current = existingForProgram[0];
           if (graduationDate < current.graduation_date) {
             const { error: updateEnrollError } = await supabase

@@ -41,7 +41,7 @@ export default async function DashboardPage() {
     <div className="space-y-8">
       <div>
         <h1 className="font-display text-2xl font-semibold text-brand">Dashboard</h1>
-        <p className="text-sm text-accent">Placement performance across all graduates. Visible to Admins and Officers alike.</p>
+        <p className="text-sm text-accent">Placement performance across all graduates.</p>
       </div>
       <div className="grid grid-cols-3 gap-4">
         <StatCard label="Total graduates tracked" value={data.length} />
@@ -51,7 +51,7 @@ export default async function DashboardPage() {
 
       <div className="rounded-lg border border-border bg-surface p-5">
         <h2 className="font-display text-lg font-semibold text-brand">Staff Accountability Overview</h2>
-        <p className="text-xs text-accent">Placed against each staff member's actual caseload — no fixed target, just who's allocated to them.</p>
+        <p className="text-xs text-accent">Placed against each staff member's actual caseload</p>
         <div className="mt-3">
           <StaffAccountabilityTable staffKpis={(staffKpis ?? []) as any} />
         </div>

@@ -27,8 +27,7 @@ export default async function ResourcesPage() {
       </div>
       <p className="text-xs text-ink/40">
         Job roles and applicant tracking now live on the external job board. The button above takes
-        you there to see which of your talent have applied to which roles — once the job board API
-        connection is ready, that data will surface directly in this system instead.
+        you there to see which of your talent have applied to which roles.
       </p>
 
       {isAdmin && <ResourceDocumentUpload />}
