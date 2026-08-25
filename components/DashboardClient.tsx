@@ -157,10 +157,6 @@ function bucketFor(dateStr: string, granularity: string) {
   }
 }
 
-// Groups case-insensitively and with whitespace collapsed, so "10X
-// Scholarship", "10x scholarship", and "10X Scholarship " (trailing
-// space) all land in the same bucket instead of splitting into separate
-// bars. Displays under whichever casing was seen first, for a clean label.
 function rateByField(rows: Row[], field: "program_name" | "sponsorship_type") {
   const byKey = new Map<string, { label: string; placed: number; total: number }>();
   for (const r of rows) {
@@ -180,23 +176,59 @@ export default function DashboardClient({ rows }: { rows: Row[] }) {
   const [granularity, setGranularity] = useState<"day" | "week" | "month" | "year">("month");
 
   const monthlyData = useMemo(() => {
+    const now = Date.now();
     const byBucket = new Map<string, { placedInPeriod: number; unplacedInPeriod: number; sortKey: number }>();
+    // Anyone with no graduation date, or a graduation date still in the
+    // future, doesn't fit on the month-by-month timeline — but they're
+    // still real students in the grand totals, so they get folded into
+    // a final "Not Yet Graduated" step rather than silently dropped.
+    // This is what makes the chart's running total actually land on the
+    // same numbers as the stat cards above it.
+    let carryPlaced = 0, carryUnplaced = 0;
+
     for (const r of rows) {
-      if (!r.graduation_date) continue;
-      const bucket = bucketFor(r.graduation_date, granularity);
-      const entry = byBucket.get(bucket) ?? { placedInPeriod: 0, unplacedInPeriod: 0, sortKey: new Date(r.graduation_date).getTime() };
+      const gradTime = r.graduation_date ? new Date(r.graduation_date).getTime() : NaN;
+      const isUsable = r.graduation_date && !isNaN(gradTime) && gradTime <= now;
+
+      if (!isUsable) {
+        if (r.placement_status === "placed") carryPlaced++; else carryUnplaced++;
+        continue;
+      }
+
+      const bucket = bucketFor(r.graduation_date!, granularity);
+      const entry = byBucket.get(bucket) ?? { placedInPeriod: 0, unplacedInPeriod: 0, sortKey: gradTime };
       if (r.placement_status === "placed") entry.placedInPeriod++; else entry.unplacedInPeriod++;
       byBucket.set(bucket, entry);
     }
+
     const sorted = Array.from(byBucket.entries()).map(([bucket, v]) => ({ bucket, ...v })).sort((a, b) => a.sortKey - b.sortKey);
 
-    let cumPlaced = 0, cumTotal = 0;
-    return sorted.map((b) => {
+    let cumPlaced = 0, cumUnplaced = 0;
+    const result = sorted.map((b) => {
       cumPlaced += b.placedInPeriod;
-      cumTotal += b.placedInPeriod + b.unplacedInPeriod;
-      const placedPct = cumTotal > 0 ? Math.round((cumPlaced / cumTotal) * 100) : 0;
-      return { bucket: b.bucket, placedPct, unplacedPct: 100 - placedPct };
+      cumUnplaced += b.unplacedInPeriod;
+      const cumTotal = cumPlaced + cumUnplaced;
+      return {
+        bucket: b.bucket,
+        placedCount: cumPlaced,
+        unplacedCount: cumUnplaced,
+        placedPct: cumTotal > 0 ? Math.round((cumPlaced / cumTotal) * 100) : 0
+      };
     });
+
+    if (carryPlaced + carryUnplaced > 0) {
+      cumPlaced += carryPlaced;
+      cumUnplaced += carryUnplaced;
+      const cumTotal = cumPlaced + cumUnplaced;
+      result.push({
+        bucket: "Not Yet Graduated",
+        placedCount: cumPlaced,
+        unplacedCount: cumUnplaced,
+        placedPct: cumTotal > 0 ? Math.round((cumPlaced / cumTotal) * 100) : 0
+      });
+    }
+
+    return result;
   }, [rows, granularity]);
 
   const programData = useMemo(() => rateByField(rows, "program_name"), [rows]);
@@ -211,13 +243,17 @@ export default function DashboardClient({ rows }: { rows: Row[] }) {
     return Array.from(counts.entries()).map(([title, count]) => ({ title, count })).sort((a, b) => b.count - a.count).slice(0, 10);
   }, [rows]);
 
+  const finalPoint = monthlyData[monthlyData.length - 1];
+
   return (
     <div className="space-y-8">
       <div className="rounded-lg border border-border bg-surface p-5">
         <div className="flex items-center justify-between">
           <div>
             <h2 className="font-display text-lg font-semibold text-brand">Placed vs Unplaced (Cumulative)</h2>
-            <p className="text-xs text-accent">Running total to date, shown as % of everyone tracked so far</p>
+            <p className="text-xs text-accent">
+              Running totals by graduation period{finalPoint ? ` — reaches ${finalPoint.placedCount} placed / ${finalPoint.unplacedCount} unplaced by the final point, matching the totals above` : ""}
+            </p>
           </div>
           <select value={granularity} onChange={(e) => setGranularity(e.target.value as any)} className="rounded-md border border-border px-3 py-1.5 text-sm">
             {GRANULARITY_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
@@ -262,4 +298,3 @@ function CountGrid({ data }: { data: { label: string; placed: number; total: num
     </div>
   );
 }
-
