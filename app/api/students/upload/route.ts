@@ -477,11 +477,33 @@ export async function POST(req: NextRequest) {
       if (!graduationDate) {
         errors.push(`Row ${i + 2} (${fullName}): couldn't parse Graduation Date "${row["Graduation Date"] ?? ""}", enrollment skipped.`);
       } else {
-        const { data: existingEnrollment } = await supabase
-          .from("enrollments").select("id").eq("student_id", student.id).eq("cohort_id", cohortId).maybeSingle();
-        if (!existingEnrollment) {
+        // Look for an existing enrollment for THIS student in THIS SAME
+        // PROGRAM (regardless of which cohort) — not just this exact
+        // cohort. This is what prevents "re-enrolled in a Mop Up cohort"
+        // from creating a second, duplicate-looking row for the same
+        // person in the Student Directory.
+        const { data: existingForProgram } = await supabase
+          .from("enrollments")
+          .select("id, graduation_date, cohorts!inner(program_id)")
+          .eq("student_id", student.id)
+          .eq("cohorts.program_id", programId);
+
+        if (!existingForProgram || existingForProgram.length === 0) {
           const { error: enrollError } = await supabase.from("enrollments").insert({ student_id: student.id, cohort_id: cohortId, graduation_date: graduationDate });
           if (enrollError) throw enrollError;
+        } else {
+          // Already enrolled in this program. Only replace it if the new
+          // row's graduation date is EARLIER than what's on file — the
+          // earlier cohort is treated as authoritative, per instruction.
+          // Otherwise this row is a later re-enrollment and is ignored.
+          const current = existingForProgram[0];
+          if (graduationDate < current.graduation_date) {
+            const { error: updateEnrollError } = await supabase
+              .from("enrollments")
+              .update({ cohort_id: cohortId, graduation_date: graduationDate })
+              .eq("id", current.id);
+            if (updateEnrollError) throw updateEnrollError;
+          }
         }
       }
 
@@ -511,10 +533,6 @@ export async function POST(req: NextRequest) {
           let staffId = staffByNameCache.get(cacheKey);
           if (staffId === undefined) {
             const { data: staffMatch } = await supabase.from("staff_users").select("id").ilike("name", assignedName).maybeSingle();
-            // staffMatch?.id can technically be `undefined` (not just absent),
-            // which the cache's declared value type (string | null) doesn't
-            // accept — coerce explicitly before storing, since the previous
-            // ?? here only guarded the outer expression, not this exact spot.
             staffId = staffMatch?.id ?? null;
             staffByNameCache.set(cacheKey, staffId ?? null);
           }
