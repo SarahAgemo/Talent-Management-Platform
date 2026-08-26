@@ -103,9 +103,9 @@ export default async function StudentProfilePage({ params }: { params: { id: str
         <div className="col-span-2 space-y-6">
           {placement && <PlacementForm placement={placement} canEdit={canEdit} />}
           <CvUpload studentId={params.id} documents={documents ?? []} />
-          <CommentsSection studentId={params.id} comments={(comments ?? []) as any} />
+          <CommentsSection studentId={params.id} comments={(comments ?? []) as any} canEdit={canEdit} />
           <ReadinessChecklist studentId={params.id} items={(readinessItems ?? []) as any} />
-          <ActivityLog studentId={params.id} entries={(activityEntries ?? []) as any} />
+          <ActivityLog studentId={params.id} entries={(activityEntries ?? []) as any} canEdit={canEdit} />
 
           <div className="rounded-lg border border-border bg-surface p-5">
             <h2 className="font-display text-lg font-semibold text-brand">Status History</h2>
