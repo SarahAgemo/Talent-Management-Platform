@@ -16,14 +16,21 @@ export const STATUS_LABELS: Record<string, string> = {
   interviewing: "Interviewing",
   offer_extended: "Offer Extended",
   placed: "Placed",
-  declined_withdrawn: "Declined / Withdrawn",
+  declined_withdrawn: "Disinterested in Work",
   further_skilling: "Further Skilling"
 };
+
 export default function StatusBadge({ status }: { status: string }) {
-  return <span className={`status-pill ${STATUS_STYLES[status] ?? "bg-ink/5 text-ink/70"}`}>{STATUS_LABELS[status] ?? status}</span>;
+  return (
+    <span className={`status-pill ${STATUS_STYLES[status] ?? "bg-ink/5 text-ink/70"}`}>
+      {STATUS_LABELS[status] ?? status}
+    </span>
+  );
 }
+
 export function InclusionBadge({ disability, refugee }: { disability?: string | null; refugee?: string | null }) {
-  const isDisability = disability === "Yes"; const isRefugee = refugee === "Yes";
+  const isDisability = disability === "Yes";
+  const isRefugee = refugee === "Yes";
   if (!isDisability && !isRefugee) return null;
   return (
     <span className="inline-flex gap-1">

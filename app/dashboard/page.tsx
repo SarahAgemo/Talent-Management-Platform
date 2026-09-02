@@ -6,10 +6,8 @@ import StaffAccountabilityTable from "@/components/StaffAccountabilityTable";
 import Link from "next/link";
 
 // Supabase's API caps any single query at 1000 rows by default, and does
-// this SILENTLY — no error, it just returns the first 1000. With more
-// students than that, a single unpaginated select() undercounts every
-// total and chart on this page. This loops in pages of 1000 until a
-// short page signals the end, so the real total is always used.
+// this SILENTLY. This loops in pages of 1000 until a short page signals
+// the end, so the real total is always used.
 async function fetchAllStudentRows(supabase: any) {
   const pageSize = 1000;
   let all: any[] = [];
@@ -35,23 +33,31 @@ export default async function DashboardPage() {
   const { data: staffKpis } = await supabase.from("staff_kpi_overview").select("*").order("staff_name");
 
   const totalPlaced = data.filter((r) => r.placement_status === "placed").length;
-  const totalUnplaced = data.length - totalPlaced;
+  const totalFurtherSkilling = data.filter((r) => r.placement_status === "further_skilling").length;
+  const totalDisinterested = data.filter((r) => r.placement_status === "declined_withdrawn").length;
+  // "Unplaced" now means actively job-seeking, not yet placed — Further
+  // Skilling and Disinterested students are tracked separately and no
+  // longer inflate this number, since neither group is actively being
+  // placed right now.
+  const totalUnplaced = data.length - totalPlaced - totalFurtherSkilling - totalDisinterested;
 
   return (
     <div className="space-y-8">
       <div>
         <h1 className="font-display text-2xl font-semibold text-brand">Dashboard</h1>
-        <p className="text-sm text-accent">Placement performance across all graduates.</p>
+        <p className="text-sm text-accent">Placement performance across all graduates. Visible to Admins and Officers alike.</p>
       </div>
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
         <StatCard label="Total graduates tracked" value={data.length} />
         <StatCard label="Placed" value={totalPlaced} tone="success" />
         <StatCard label="Unplaced" value={totalUnplaced} tone="warning" />
+        <StatCard label="Further Skilling" value={totalFurtherSkilling} tone="purple" />
+        <StatCard label="Disinterested in Work" value={totalDisinterested} tone="danger" />
       </div>
 
       <div className="rounded-lg border border-border bg-surface p-5">
         <h2 className="font-display text-lg font-semibold text-brand">Staff Accountability Overview</h2>
-        <p className="text-xs text-accent">Placed against each staff member's actual caseload</p>
+        <p className="text-xs text-accent">Placed against each staff member's actual caseload — no fixed target, just who's allocated to them.</p>
         <div className="mt-3">
           <StaffAccountabilityTable staffKpis={(staffKpis ?? []) as any} />
         </div>
@@ -63,8 +69,8 @@ export default async function DashboardPage() {
   );
 }
 
-function StatCard({ label, value, tone }: { label: string; value: number; tone?: "success" | "warning" }) {
-  const color = tone === "success" ? "text-success" : tone === "warning" ? "text-warning" : "text-ink";
+function StatCard({ label, value, tone }: { label: string; value: number; tone?: "success" | "warning" | "purple" | "danger" }) {
+  const color = tone === "success" ? "text-success" : tone === "warning" ? "text-warning" : tone === "purple" ? "text-purple-700" : tone === "danger" ? "text-danger" : "text-ink";
   return (
     <div className="rounded-lg border border-border bg-surface p-5">
       <p className="text-sm text-ink/50">{label}</p>
