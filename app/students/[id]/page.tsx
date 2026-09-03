@@ -73,6 +73,8 @@ export default async function StudentProfilePage({ params }: { params: { id: str
     jobFitRoles = rule?.suggested_roles ?? [];
   }
 
+  const readinessDormant = student.placement_status === "placed" || student.placement_status === "declined_withdrawn";
+
   return (
     <div className="space-y-6">
       <Link href="/students" className="inline-flex items-center gap-1.5 text-sm text-ink/50 hover:text-accent">
@@ -104,7 +106,17 @@ export default async function StudentProfilePage({ params }: { params: { id: str
           {placement && <PlacementForm placement={placement} canEdit={canEdit} />}
           <CvUpload studentId={params.id} documents={documents ?? []} />
           <CommentsSection studentId={params.id} comments={(comments ?? []) as any} canEdit={canEdit} />
-          <ReadinessChecklist studentId={params.id} items={(readinessItems ?? []) as any} />
+
+          <div>
+            {readinessDormant && (
+              <p className="mb-2 text-xs text-ink/40">
+                This student is {student.placement_status === "placed" ? "placed" : "marked disinterested in work"} —
+                readiness is no longer actively chased, shown below as historical record only.
+              </p>
+            )}
+            <ReadinessChecklist studentId={params.id} items={(readinessItems ?? []) as any} />
+          </div>
+
           <ActivityLog studentId={params.id} entries={(activityEntries ?? []) as any} canEdit={canEdit} />
 
           <div className="rounded-lg border border-border bg-surface p-5">
