@@ -13,7 +13,7 @@ export default function ExportStudentsButton() {
   async function fetchAllFiltered() {
     let query = supabase
       .from("student_overview")
-      .select("full_name, program_name, cohort_name, graduation_date, placement_status, company_name, position_title, days_since_graduation, assigned_staff_name, disability_status, refugee_status")
+      .select("full_name, program_name, cohort_name, graduation_date, placement_status, company_name, position_title, placement_date, days_since_graduation, assigned_staff_name, disability_status, refugee_status")
       .order("graduation_date", { ascending: false });
 
     const status = searchParams.get("status");
@@ -27,9 +27,9 @@ export default function ExportStudentsButton() {
     if (q) query = query.ilike("full_name", `%${q}%`);
     if (inclusion === "1") query = query.eq("needs_inclusion_support", true);
     if (staff === "__unassigned__") query = query.is("assigned_staff_name", null);
+    else if (staff === "__assigned__") query = query.not("assigned_staff_name", "is", null);
     else if (staff) query = query.eq("assigned_staff_name", staff);
 
-    // Same 1000-row API cap applies here — page through it.
     let all: any[] = [];
     let from = 0;
     const pageSize = 1000;

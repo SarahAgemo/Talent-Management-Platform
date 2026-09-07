@@ -6,6 +6,7 @@ import { PlacedVsUnplacedChart, PlacementRateBarChart, TopJobTitlesChart } from 
 type Row = {
   program_name: string | null;
   graduation_date: string | null;
+  placement_date: string | null;
   placement_status: string | null;
   position_title: string | null;
   sponsorship_type: string | null;
@@ -46,53 +47,61 @@ export default function DashboardClient({ rows }: { rows: Row[] }) {
 
   const monthlyData = useMemo(() => {
     const now = Date.now();
-    const byBucket = new Map<string, { placedInPeriod: number; unplacedInPeriod: number; sortKey: number }>();
-    let carryPlaced = 0, carryUnplaced = 0;
 
-    for (const r of rows) {
-      // Further Skilling and Disinterested students are excluded from this
-      // chart entirely — they're not part of the active placement funnel,
-      // same treatment as the stat cards above this chart.
-      if (r.placement_status === "further_skilling" || r.placement_status === "declined_withdrawn") continue;
-
+    // The pool this chart is about: actively job-seeking students, same
+    // definition as the stat cards — excludes Further Skilling and
+    // Disinterested, and excludes anyone who hasn't graduated yet (unless
+    // they're already placed, which can happen with messy source dates).
+    const eligible = rows.filter((r) => {
+      if (r.placement_status === "further_skilling" || r.placement_status === "declined_withdrawn") return false;
+      if (r.placement_status === "placed") return true;
       const gradTime = r.graduation_date ? new Date(r.graduation_date).getTime() : NaN;
-      const isUsable = r.graduation_date && !isNaN(gradTime) && gradTime <= now;
+      return r.graduation_date && !isNaN(gradTime) && gradTime <= now;
+    });
+    const eligibleTotal = eligible.length;
 
-      if (!isUsable) {
-        if (r.placement_status === "placed") carryPlaced++; else carryUnplaced++;
-        continue;
-      }
+    // Bucket PLACED students by their actual placement_date — this is what
+    // makes the chart grow as new placements are recorded, not just when
+    // someone happens to graduate in a new month.
+    const byBucket = new Map<string, { count: number; sortKey: number }>();
+    let undated = 0;
 
-      const bucket = bucketFor(r.graduation_date!, granularity);
-      const entry = byBucket.get(bucket) ?? { placedInPeriod: 0, unplacedInPeriod: 0, sortKey: gradTime };
-      if (r.placement_status === "placed") entry.placedInPeriod++; else entry.unplacedInPeriod++;
+    for (const r of eligible) {
+      if (r.placement_status !== "placed") continue;
+      const placedTime = r.placement_date ? new Date(r.placement_date).getTime() : NaN;
+      const isUsable = r.placement_date && !isNaN(placedTime) && placedTime <= now;
+      if (!isUsable) { undated++; continue; }
+      const bucket = bucketFor(r.placement_date!, granularity);
+      const entry = byBucket.get(bucket) ?? { count: 0, sortKey: placedTime };
+      entry.count++;
       byBucket.set(bucket, entry);
     }
 
     const sorted = Array.from(byBucket.entries()).map(([bucket, v]) => ({ bucket, ...v })).sort((a, b) => a.sortKey - b.sortKey);
 
-    let cumPlaced = 0, cumUnplaced = 0;
+    let cumPlaced = 0;
     const result = sorted.map((b) => {
-      cumPlaced += b.placedInPeriod;
-      cumUnplaced += b.unplacedInPeriod;
-      const cumTotal = cumPlaced + cumUnplaced;
+      cumPlaced += b.count;
+      const unplacedCount = eligibleTotal - cumPlaced;
       return {
         bucket: b.bucket,
         placedCount: cumPlaced,
-        unplacedCount: cumUnplaced,
-        placedPct: cumTotal > 0 ? Math.round((cumPlaced / cumTotal) * 100) : 0
+        unplacedCount,
+        placedPct: eligibleTotal > 0 ? Math.round((cumPlaced / eligibleTotal) * 100) : 0
       };
     });
 
-    if (carryPlaced + carryUnplaced > 0) {
-      cumPlaced += carryPlaced;
-      cumUnplaced += carryUnplaced;
-      const cumTotal = cumPlaced + cumUnplaced;
+    // Placed students with no usable placement_date still count toward the
+    // true total — they just can't sit on a dated timeline, so they land
+    // in one final catch-all point instead of being silently dropped.
+    if (undated > 0) {
+      cumPlaced += undated;
+      const unplacedCount = eligibleTotal - cumPlaced;
       result.push({
-        bucket: "Not Yet Graduated",
+        bucket: "Placement Date Not Recorded",
         placedCount: cumPlaced,
-        unplacedCount: cumUnplaced,
-        placedPct: cumTotal > 0 ? Math.round((cumPlaced / cumTotal) * 100) : 0
+        unplacedCount,
+        placedPct: eligibleTotal > 0 ? Math.round((cumPlaced / eligibleTotal) * 100) : 0
       });
     }
 
@@ -120,7 +129,7 @@ export default function DashboardClient({ rows }: { rows: Row[] }) {
           <div>
             <h2 className="font-display text-lg font-semibold text-brand">Placed vs Unplaced (Cumulative)</h2>
             <p className="text-xs text-accent">
-              Actively job-seeking students only — Further Skilling and Disinterested are tracked separately above.
+              Tracks when placements actually happened — grows automatically as new placement dates are recorded.
               {finalPoint ? ` Reaches ${finalPoint.placedCount} placed / ${finalPoint.unplacedCount} unplaced by the final point.` : ""}
             </p>
           </div>

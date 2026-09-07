@@ -48,7 +48,8 @@ export default function StudentFilters({ programs, staff }: { programs: { id: st
 
         <select value={activeStaff ?? ""} onChange={(e) => setParam("staff", e.target.value || null)}
           className="rounded-md border border-border px-3 py-1.5 text-sm">
-          <option value="">Assigned to: anyone</option>
+          <option value="">All students</option>
+          <option value="__assigned__">Assigned to: anyone</option>
           <option value="__unassigned__">Unassigned only</option>
           {staff.map((s) => <option key={s.id} value={s.name}>{s.name}</option>)}
         </select>

@@ -5,9 +5,6 @@ import DashboardClient from "@/components/DashboardClient";
 import StaffAccountabilityTable from "@/components/StaffAccountabilityTable";
 import Link from "next/link";
 
-// Supabase's API caps any single query at 1000 rows by default, and does
-// this SILENTLY. This loops in pages of 1000 until a short page signals
-// the end, so the real total is always used.
 async function fetchAllStudentRows(supabase: any) {
   const pageSize = 1000;
   let all: any[] = [];
@@ -15,7 +12,7 @@ async function fetchAllStudentRows(supabase: any) {
   while (true) {
     const { data, error } = await supabase
       .from("student_overview")
-      .select("program_name, graduation_date, placement_status, position_title, sponsorship_type")
+      .select("program_name, graduation_date, placement_date, placement_status, position_title, sponsorship_type")
       .range(from, from + pageSize - 1);
     if (error) throw error;
     if (!data || data.length === 0) break;
@@ -35,10 +32,6 @@ export default async function DashboardPage() {
   const totalPlaced = data.filter((r) => r.placement_status === "placed").length;
   const totalFurtherSkilling = data.filter((r) => r.placement_status === "further_skilling").length;
   const totalDisinterested = data.filter((r) => r.placement_status === "declined_withdrawn").length;
-  // "Unplaced" now means actively job-seeking, not yet placed — Further
-  // Skilling and Disinterested students are tracked separately and no
-  // longer inflate this number, since neither group is actively being
-  // placed right now.
   const totalUnplaced = data.length - totalPlaced - totalFurtherSkilling - totalDisinterested;
 
   return (

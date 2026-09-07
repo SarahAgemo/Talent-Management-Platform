@@ -44,7 +44,10 @@ export default function PlacementForm({ placement, canEdit }: { placement: Place
     setMessage(null);
     const { data, error } = await supabase.from("placements").update({
       status: form.status, company_name: form.company_name, position_title: form.position_title,
-      employment_type: form.employment_type, placement_date: form.placement_date,
+      employment_type: form.employment_type,
+      // An emptied date input becomes "", which Postgres cannot store in a
+      // date column — this converts a cleared field to a real null instead.
+      placement_date: form.placement_date || null,
       salary_compensation: form.salary_compensation, notes: form.notes,
       needs_further_support: form.needs_further_support
     }).eq("id", placement.id).select();
@@ -115,6 +118,7 @@ export default function PlacementForm({ placement, canEdit }: { placement: Place
             <label className="block text-sm font-medium text-ink/80">Placement date</label>
             <input type="date" value={form.placement_date ?? ""} onChange={(e) => setForm({ ...form, placement_date: e.target.value })}
               className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm" />
+            <p className="mt-1 text-xs text-ink/40">Clear this field to remove the date entirely.</p>
           </div>
           <div className="col-span-2">
             <label className="block text-sm font-medium text-ink/80">Salary / compensation</label>
