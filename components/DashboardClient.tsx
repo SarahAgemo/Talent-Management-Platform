@@ -44,14 +44,22 @@ function rateByField(rows: Row[], field: "program_name" | "sponsorship_type") {
 
 export default function DashboardClient({ rows }: { rows: Row[] }) {
   const [granularity, setGranularity] = useState<"day" | "week" | "month" | "year">("month");
+  const [yearFilter, setYearFilter] = useState<string>("all");
+
+  // Every year that actually has a placement on record, for the dropdown.
+  const availableYears = useMemo(() => {
+    const years = new Set<number>();
+    for (const r of rows) {
+      if (r.placement_status !== "placed" || !r.placement_date) continue;
+      const t = new Date(r.placement_date).getTime();
+      if (!isNaN(t) && t <= Date.now()) years.add(new Date(r.placement_date).getFullYear());
+    }
+    return Array.from(years).sort((a, b) => b - a);
+  }, [rows]);
 
   const monthlyData = useMemo(() => {
     const now = Date.now();
 
-    // The pool this chart is about: actively job-seeking students, same
-    // definition as the stat cards — excludes Further Skilling and
-    // Disinterested, and excludes anyone who hasn't graduated yet (unless
-    // they're already placed, which can happen with messy source dates).
     const eligible = rows.filter((r) => {
       if (r.placement_status === "further_skilling" || r.placement_status === "declined_withdrawn") return false;
       if (r.placement_status === "placed") return true;
@@ -60,10 +68,7 @@ export default function DashboardClient({ rows }: { rows: Row[] }) {
     });
     const eligibleTotal = eligible.length;
 
-    // Bucket PLACED students by their actual placement_date — this is what
-    // makes the chart grow as new placements are recorded, not just when
-    // someone happens to graduate in a new month.
-    const byBucket = new Map<string, { count: number; sortKey: number }>();
+    const byBucket = new Map<string, { count: number; sortKey: number; year: number }>();
     let undated = 0;
 
     for (const r of eligible) {
@@ -72,41 +77,46 @@ export default function DashboardClient({ rows }: { rows: Row[] }) {
       const isUsable = r.placement_date && !isNaN(placedTime) && placedTime <= now;
       if (!isUsable) { undated++; continue; }
       const bucket = bucketFor(r.placement_date!, granularity);
-      const entry = byBucket.get(bucket) ?? { count: 0, sortKey: placedTime };
+      const entry = byBucket.get(bucket) ?? { count: 0, sortKey: placedTime, year: new Date(r.placement_date!).getFullYear() };
       entry.count++;
       byBucket.set(bucket, entry);
     }
 
     const sorted = Array.from(byBucket.entries()).map(([bucket, v]) => ({ bucket, ...v })).sort((a, b) => a.sortKey - b.sortKey);
 
+    // Cumulative totals are computed across the FULL history first, so a
+    // bar shown after zooming into one year still reflects the true
+    // running total from day one — the year filter only changes which
+    // bars are DISPLAYED, never re-bases the count to zero.
     let cumPlaced = 0;
-    const result = sorted.map((b) => {
+    const full = sorted.map((b) => {
       cumPlaced += b.count;
       const unplacedCount = eligibleTotal - cumPlaced;
       return {
-        bucket: b.bucket,
-        placedCount: cumPlaced,
-        unplacedCount,
+        bucket: b.bucket, year: b.year,
+        placedCount: cumPlaced, unplacedCount,
         placedPct: eligibleTotal > 0 ? Math.round((cumPlaced / eligibleTotal) * 100) : 0
       };
     });
 
-    // Placed students with no usable placement_date still count toward the
-    // true total — they just can't sit on a dated timeline, so they land
-    // in one final catch-all point instead of being silently dropped.
-    if (undated > 0) {
+    const undatedPoint = undated > 0 ? (() => {
       cumPlaced += undated;
       const unplacedCount = eligibleTotal - cumPlaced;
-      result.push({
-        bucket: "Placement Date Not Recorded",
-        placedCount: cumPlaced,
-        unplacedCount,
+      return {
+        bucket: "Placement Date Not Recorded", year: null as number | null,
+        placedCount: cumPlaced, unplacedCount,
         placedPct: eligibleTotal > 0 ? Math.round((cumPlaced / eligibleTotal) * 100) : 0
-      });
-    }
+      };
+    })() : null;
 
-    return result;
-  }, [rows, granularity]);
+    if (yearFilter === "all") {
+      return undatedPoint ? [...full, undatedPoint] : full;
+    }
+    // Zoomed to one year: only show that year's bars (still carrying the
+    // true cumulative total computed above) — the undated catch-all is
+    // dropped here since it doesn't belong to any specific year.
+    return full.filter((b) => b.year === Number(yearFilter));
+  }, [rows, granularity, yearFilter]);
 
   const programData = useMemo(() => rateByField(rows, "program_name"), [rows]);
   const sponsorshipData = useMemo(() => rateByField(rows, "sponsorship_type"), [rows]);
@@ -125,17 +135,23 @@ export default function DashboardClient({ rows }: { rows: Row[] }) {
   return (
     <div className="space-y-8">
       <div className="rounded-lg border border-border bg-surface p-5">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
             <h2 className="font-display text-lg font-semibold text-brand">Placed vs Unplaced (Cumulative)</h2>
             <p className="text-xs text-accent">
               Tracks when placements actually happened — grows automatically as new placement dates are recorded.
-              {finalPoint ? ` Reaches ${finalPoint.placedCount} placed / ${finalPoint.unplacedCount} unplaced by the final point.` : ""}
+              {finalPoint ? ` Reaches ${finalPoint.placedCount} placed / ${finalPoint.unplacedCount} unplaced by the final point shown.` : ""}
             </p>
           </div>
-          <select value={granularity} onChange={(e) => setGranularity(e.target.value as any)} className="rounded-md border border-border px-3 py-1.5 text-sm">
-            {GRANULARITY_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-          </select>
+          <div className="flex gap-2">
+            <select value={yearFilter} onChange={(e) => setYearFilter(e.target.value)} className="rounded-md border border-border px-3 py-1.5 text-sm">
+              <option value="all">All years</option>
+              {availableYears.map((y) => <option key={y} value={y}>{y}</option>)}
+            </select>
+            <select value={granularity} onChange={(e) => setGranularity(e.target.value as any)} className="rounded-md border border-border px-3 py-1.5 text-sm">
+              {GRANULARITY_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+          </div>
         </div>
         <div className="mt-4"><PlacedVsUnplacedChart data={monthlyData} /></div>
       </div>
