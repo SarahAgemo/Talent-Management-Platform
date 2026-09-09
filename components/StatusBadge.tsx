@@ -10,8 +10,8 @@ const STATUS_STYLES: Record<string, string> = {
 };
 
 export const STATUS_LABELS: Record<string, string> = {
-  awaiting_placement: "Available for Work",
-  in_preparation: "In Preparation",
+  awaiting_placement: "Unplaced",
+  in_preparation: "Onboarding",
   applying: "Applying",
   interviewing: "Interviewing",
   offer_extended: "Offer Extended",

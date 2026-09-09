@@ -6,20 +6,24 @@ import StudentTable from "@/components/StudentTable";
 import Pagination from "@/components/Pagination";
 import ExportStudentsButton from "@/components/ExportStudentsButton";
 
-const PAGE_SIZE = 10;
+const DEFAULT_PAGE_SIZE = 10;
+const ALLOWED_PAGE_SIZES = [10, 30, 50];
 
 export default async function StudentsPage({
   searchParams
 }: {
-  searchParams: { status?: string; program?: string; q?: string; inclusion?: string; page?: string; staff?: string };
+  searchParams: { status?: string; program?: string; q?: string; inclusion?: string; page?: string; staff?: string; pageSize?: string };
 }) {
   const supabase = createClient();
   const { data: programs } = await supabase.from("programs").select("id, name").order("name");
   const { data: staffList } = await supabase.from("staff_users").select("id, name").order("name");
 
+  const requestedSize = parseInt(searchParams.pageSize ?? "", 10);
+  const pageSize = ALLOWED_PAGE_SIZES.includes(requestedSize) ? requestedSize : DEFAULT_PAGE_SIZE;
+
   const page = Math.max(1, parseInt(searchParams.page ?? "1", 10) || 1);
-  const from = (page - 1) * PAGE_SIZE;
-  const to = from + PAGE_SIZE - 1;
+  const from = (page - 1) * pageSize;
+  const to = from + pageSize - 1;
 
   let query = supabase
     .from("student_overview")
@@ -34,12 +38,6 @@ export default async function StudentsPage({
   if (searchParams.program) query = query.eq("program_name", searchParams.program);
   if (searchParams.q) query = query.ilike("full_name", `%${searchParams.q}%`);
   if (searchParams.inclusion === "1") query = query.eq("needs_inclusion_support", true);
-
-  // Three distinct meanings now: no param at all = everyone; "__assigned__"
-  // = must have someone assigned (any staff); "__unassigned__" = must have
-  // nobody assigned. Previously the default option applied no filter at
-  // all, which looked identical to "assigned to anyone" including
-  // unassigned students in results it shouldn't have.
   if (searchParams.staff === "__unassigned__") query = query.is("assigned_staff_name", null);
   else if (searchParams.staff === "__assigned__") query = query.not("assigned_staff_name", "is", null);
   else if (searchParams.staff) query = query.eq("assigned_staff_name", searchParams.staff);
@@ -62,7 +60,7 @@ export default async function StudentsPage({
         </p>
       )}
       <StudentTable rows={rows ?? []} />
-      <Pagination page={page} pageSize={PAGE_SIZE} totalCount={count ?? 0} />
+      <Pagination page={page} pageSize={pageSize} totalCount={count ?? 0} />
     </div>
   );
 }
