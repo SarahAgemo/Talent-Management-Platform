@@ -9,6 +9,7 @@ type Placement = {
   id: string; status: string; company_name: string | null; position_title: string | null;
   employment_type: string | null; placement_date: string | null; salary_compensation: string | null;
   notes: string | null; needs_further_support?: boolean;
+  employment_category?: string | null; improvement_type?: string | null; improvement_other_detail?: string | null;
 };
 
 const EMPLOYMENT_TYPES = [
@@ -22,8 +23,25 @@ const EMPLOYMENT_TYPES = [
   { value: "further_skilling", label: "Further Skilling" }
 ];
 
+const EMPLOYMENT_CATEGORIES = [
+  { value: "new_employment", label: "New Employment" },
+  { value: "improved_employment", label: "Improved Employment" }
+];
+
+const IMPROVEMENT_TYPES = [
+  { value: "income_increase", label: "Income Increase" },
+  { value: "improved_working_conditions", label: "Improved Working Conditions" },
+  { value: "other", label: "Other" }
+];
+
 export default function PlacementForm({ placement, canEdit }: { placement: Placement; canEdit: boolean }) {
-  const [form, setForm] = useState({ ...placement, needs_further_support: placement.needs_further_support ?? false });
+  const [form, setForm] = useState({
+    ...placement,
+    needs_further_support: placement.needs_further_support ?? false,
+    employment_category: placement.employment_category ?? "",
+    improvement_type: placement.improvement_type ?? "",
+    improvement_other_detail: placement.improvement_other_detail ?? ""
+  });
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [errorPopup, setErrorPopup] = useState<string | null>(null);
@@ -38,6 +56,24 @@ export default function PlacementForm({ placement, canEdit }: { placement: Place
     });
   }
 
+  function handleCategoryChange(value: string) {
+    setForm({
+      ...form,
+      employment_category: value,
+      // Clear the follow-up fields if switching away from Improved Employment.
+      improvement_type: value === "improved_employment" ? form.improvement_type : "",
+      improvement_other_detail: value === "improved_employment" ? form.improvement_other_detail : ""
+    });
+  }
+
+  function handleImprovementTypeChange(value: string) {
+    setForm({
+      ...form,
+      improvement_type: value,
+      improvement_other_detail: value === "other" ? form.improvement_other_detail : ""
+    });
+  }
+
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
@@ -45,26 +81,37 @@ export default function PlacementForm({ placement, canEdit }: { placement: Place
     const { data, error } = await supabase.from("placements").update({
       status: form.status, company_name: form.company_name, position_title: form.position_title,
       employment_type: form.employment_type,
-      // An emptied date input becomes "", which Postgres cannot store in a
-      // date column — this converts a cleared field to a real null instead.
       placement_date: form.placement_date || null,
       salary_compensation: form.salary_compensation, notes: form.notes,
-      needs_further_support: form.needs_further_support
+      needs_further_support: form.needs_further_support,
+      employment_category: form.employment_category || null,
+      improvement_type: form.employment_category === "improved_employment" ? (form.improvement_type || null) : null,
+      improvement_other_detail: form.improvement_type === "other" ? (form.improvement_other_detail || null) : null
     }).eq("id", placement.id).select();
     setSaving(false);
 
     if (error) {
       setErrorPopup(friendlyErrorMessage(error.message));
-      setForm({ ...placement, needs_further_support: placement.needs_further_support ?? false });
+      resetForm();
       return;
     }
     if (!data || data.length === 0) {
       setErrorPopup("You can't edit this student's placement — they're allocated to another staff member (or your account doesn't have edit access). Only their assigned officer or an Admin can make changes here.");
-      setForm({ ...placement, needs_further_support: placement.needs_further_support ?? false });
+      resetForm();
       return;
     }
     setMessage("Saved.");
     router.refresh();
+  }
+
+  function resetForm() {
+    setForm({
+      ...placement,
+      needs_further_support: placement.needs_further_support ?? false,
+      employment_category: placement.employment_category ?? "",
+      improvement_type: placement.improvement_type ?? "",
+      improvement_other_detail: placement.improvement_other_detail ?? ""
+    });
   }
 
   if (!canEdit) {
@@ -76,6 +123,14 @@ export default function PlacementForm({ placement, canEdit }: { placement: Place
           <Row label="Company" value={placement.company_name} />
           <Row label="Position title" value={placement.position_title} />
           <Row label="Employment type" value={EMPLOYMENT_TYPES.find((t) => t.value === placement.employment_type)?.label ?? placement.employment_type} />
+          <Row label="Employment category" value={EMPLOYMENT_CATEGORIES.find((c) => c.value === placement.employment_category)?.label} />
+          {placement.employment_category === "improved_employment" && (
+            <Row label="What improved" value={
+              placement.improvement_type === "other"
+                ? placement.improvement_other_detail
+                : IMPROVEMENT_TYPES.find((i) => i.value === placement.improvement_type)?.label
+            } />
+          )}
           <Row label="Placement date" value={placement.placement_date} />
           <Row label="Salary / compensation" value={placement.salary_compensation} />
         </dl>
@@ -114,6 +169,35 @@ export default function PlacementForm({ placement, canEdit }: { placement: Place
               {EMPLOYMENT_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
             </select>
           </div>
+          <div>
+            <label className="block text-sm font-medium text-ink/80">Employment category</label>
+            <select value={form.employment_category} onChange={(e) => handleCategoryChange(e.target.value)}
+              className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm">
+              <option value="">—</option>
+              {EMPLOYMENT_CATEGORIES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+            </select>
+          </div>
+
+          {form.employment_category === "improved_employment" && (
+            <div>
+              <label className="block text-sm font-medium text-ink/80">If improved, what improved?</label>
+              <select value={form.improvement_type} onChange={(e) => handleImprovementTypeChange(e.target.value)}
+                className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm">
+                <option value="">—</option>
+                {IMPROVEMENT_TYPES.map((i) => <option key={i.value} value={i.value}>{i.label}</option>)}
+              </select>
+            </div>
+          )}
+
+          {form.employment_category === "improved_employment" && form.improvement_type === "other" && (
+            <div>
+              <label className="block text-sm font-medium text-ink/80">Please specify</label>
+              <input value={form.improvement_other_detail} onChange={(e) => setForm({ ...form, improvement_other_detail: e.target.value })}
+                placeholder="Describe what improved…"
+                className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm" />
+            </div>
+          )}
+
           <div>
             <label className="block text-sm font-medium text-ink/80">Placement date</label>
             <input type="date" value={form.placement_date ?? ""} onChange={(e) => setForm({ ...form, placement_date: e.target.value })}
