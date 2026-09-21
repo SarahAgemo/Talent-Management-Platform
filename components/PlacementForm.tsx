@@ -10,6 +10,10 @@ type Placement = {
   employment_type: string | null; placement_date: string | null; salary_compensation: string | null;
   notes: string | null; needs_further_support?: boolean;
   employment_category?: string | null; improvement_type?: string | null; improvement_other_detail?: string | null;
+  youth_employed_count?: number | null;
+  employees_female?: number | null; employees_male?: number | null;
+  employees_below_18?: number | null; employees_18_35?: number | null; employees_above_35?: number | null;
+  employees_ugandan?: number | null; employees_non_ugandan?: number | null;
 };
 
 const EMPLOYMENT_TYPES = [
@@ -34,19 +38,45 @@ const IMPROVEMENT_TYPES = [
   { value: "other", label: "Other" }
 ];
 
+const SELF_EMPLOYMENT_KEYS = [
+  "youth_employed_count", "employees_female", "employees_male",
+  "employees_below_18", "employees_18_35", "employees_above_35",
+  "employees_ugandan", "employees_non_ugandan"
+] as const;
+
+function numToStr(n: number | null | undefined) { return n === null || n === undefined ? "" : String(n); }
+function strToInt(v: string): number | null {
+  const n = parseInt(v, 10);
+  return isNaN(n) || n < 0 ? null : n;
+}
+
+function initialForm(p: Placement) {
+  return {
+    ...p,
+    needs_further_support: p.needs_further_support ?? false,
+    employment_category: p.employment_category ?? "",
+    improvement_type: p.improvement_type ?? "",
+    improvement_other_detail: p.improvement_other_detail ?? "",
+    youth_employed_count: numToStr(p.youth_employed_count),
+    employees_female: numToStr(p.employees_female),
+    employees_male: numToStr(p.employees_male),
+    employees_below_18: numToStr(p.employees_below_18),
+    employees_18_35: numToStr(p.employees_18_35),
+    employees_above_35: numToStr(p.employees_above_35),
+    employees_ugandan: numToStr(p.employees_ugandan),
+    employees_non_ugandan: numToStr(p.employees_non_ugandan)
+  };
+}
+
 export default function PlacementForm({ placement, canEdit }: { placement: Placement; canEdit: boolean }) {
-  const [form, setForm] = useState({
-    ...placement,
-    needs_further_support: placement.needs_further_support ?? false,
-    employment_category: placement.employment_category ?? "",
-    improvement_type: placement.improvement_type ?? "",
-    improvement_other_detail: placement.improvement_other_detail ?? ""
-  });
+  const [form, setForm] = useState(initialForm(placement));
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [errorPopup, setErrorPopup] = useState<string | null>(null);
   const router = useRouter();
   const supabase = createClient();
+
+  const isSelfEmployed = form.employment_type === "self_employed";
 
   function handleEmploymentTypeChange(value: string) {
     setForm({
@@ -60,7 +90,6 @@ export default function PlacementForm({ placement, canEdit }: { placement: Place
     setForm({
       ...form,
       employment_category: value,
-      // Clear the follow-up fields if switching away from Improved Employment.
       improvement_type: value === "improved_employment" ? form.improvement_type : "",
       improvement_other_detail: value === "improved_employment" ? form.improvement_other_detail : ""
     });
@@ -78,6 +107,15 @@ export default function PlacementForm({ placement, canEdit }: { placement: Place
     e.preventDefault();
     setSaving(true);
     setMessage(null);
+
+    // Self-employment numbers are only stored while the type is actually
+    // Self-Employed — switching to any other type clears them on save, so
+    // stale business figures can't linger on a full-time placement.
+    const selfEmploymentPayload: Record<string, number | null> = {};
+    for (const key of SELF_EMPLOYMENT_KEYS) {
+      selfEmploymentPayload[key] = isSelfEmployed ? strToInt(form[key]) : null;
+    }
+
     const { data, error } = await supabase.from("placements").update({
       status: form.status, company_name: form.company_name, position_title: form.position_title,
       employment_type: form.employment_type,
@@ -86,32 +124,23 @@ export default function PlacementForm({ placement, canEdit }: { placement: Place
       needs_further_support: form.needs_further_support,
       employment_category: form.employment_category || null,
       improvement_type: form.employment_category === "improved_employment" ? (form.improvement_type || null) : null,
-      improvement_other_detail: form.improvement_type === "other" ? (form.improvement_other_detail || null) : null
+      improvement_other_detail: form.improvement_type === "other" ? (form.improvement_other_detail || null) : null,
+      ...selfEmploymentPayload
     }).eq("id", placement.id).select();
     setSaving(false);
 
     if (error) {
       setErrorPopup(friendlyErrorMessage(error.message));
-      resetForm();
+      setForm(initialForm(placement));
       return;
     }
     if (!data || data.length === 0) {
       setErrorPopup("You can't edit this student's placement — they're allocated to another staff member (or your account doesn't have edit access). Only their assigned officer or an Admin can make changes here.");
-      resetForm();
+      setForm(initialForm(placement));
       return;
     }
     setMessage("Saved.");
     router.refresh();
-  }
-
-  function resetForm() {
-    setForm({
-      ...placement,
-      needs_further_support: placement.needs_further_support ?? false,
-      employment_category: placement.employment_category ?? "",
-      improvement_type: placement.improvement_type ?? "",
-      improvement_other_detail: placement.improvement_other_detail ?? ""
-    });
   }
 
   if (!canEdit) {
@@ -123,6 +152,14 @@ export default function PlacementForm({ placement, canEdit }: { placement: Place
           <Row label="Company" value={placement.company_name} />
           <Row label="Position title" value={placement.position_title} />
           <Row label="Employment type" value={EMPLOYMENT_TYPES.find((t) => t.value === placement.employment_type)?.label ?? placement.employment_type} />
+          {placement.employment_type === "self_employed" && (
+            <>
+              <Row label="Youth employed in business" value={numToStr(placement.youth_employed_count)} />
+              <Row label="Female / Male" value={`${numToStr(placement.employees_female) || "—"} / ${numToStr(placement.employees_male) || "—"}`} />
+              <Row label="Below 18 / 18–35 / Above 35" value={`${numToStr(placement.employees_below_18) || "—"} / ${numToStr(placement.employees_18_35) || "—"} / ${numToStr(placement.employees_above_35) || "—"}`} />
+              <Row label="Ugandan / Non-Ugandan" value={`${numToStr(placement.employees_ugandan) || "—"} / ${numToStr(placement.employees_non_ugandan) || "—"}`} />
+            </>
+          )}
           <Row label="Employment category" value={EMPLOYMENT_CATEGORIES.find((c) => c.value === placement.employment_category)?.label} />
           {placement.employment_category === "improved_employment" && (
             <Row label="What improved" value={
@@ -178,6 +215,38 @@ export default function PlacementForm({ placement, canEdit }: { placement: Place
             </select>
           </div>
 
+          {isSelfEmployed && (
+            <div className="col-span-2 rounded-md border border-brand/20 bg-brand/5 p-4">
+              <p className="text-sm font-medium text-brand">Self-employment — business details</p>
+              <div className="mt-3">
+                <NumberField label="Number of youth employed in business" value={form.youth_employed_count}
+                  onChange={(v) => setForm({ ...form, youth_employed_count: v })} />
+              </div>
+
+              <p className="mt-4 text-xs font-semibold uppercase tracking-wide text-ink/50">Gender</p>
+              <div className="mt-1 grid grid-cols-2 gap-3">
+                <NumberField label="No. of female" value={form.employees_female} onChange={(v) => setForm({ ...form, employees_female: v })} />
+                <NumberField label="No. of male" value={form.employees_male} onChange={(v) => setForm({ ...form, employees_male: v })} />
+              </div>
+              <SumCheck parts={[form.employees_female, form.employees_male]} total={form.youth_employed_count} label="Female + Male" />
+
+              <p className="mt-4 text-xs font-semibold uppercase tracking-wide text-ink/50">Age group</p>
+              <div className="mt-1 grid grid-cols-3 gap-3">
+                <NumberField label="Below 18" value={form.employees_below_18} onChange={(v) => setForm({ ...form, employees_below_18: v })} />
+                <NumberField label="18–35" value={form.employees_18_35} onChange={(v) => setForm({ ...form, employees_18_35: v })} />
+                <NumberField label="Above 35" value={form.employees_above_35} onChange={(v) => setForm({ ...form, employees_above_35: v })} />
+              </div>
+              <SumCheck parts={[form.employees_below_18, form.employees_18_35, form.employees_above_35]} total={form.youth_employed_count} label="Age groups" />
+
+              <p className="mt-4 text-xs font-semibold uppercase tracking-wide text-ink/50">Nationality</p>
+              <div className="mt-1 grid grid-cols-2 gap-3">
+                <NumberField label="No. of Ugandans" value={form.employees_ugandan} onChange={(v) => setForm({ ...form, employees_ugandan: v })} />
+                <NumberField label="No. of non-Ugandans" value={form.employees_non_ugandan} onChange={(v) => setForm({ ...form, employees_non_ugandan: v })} />
+              </div>
+              <SumCheck parts={[form.employees_ugandan, form.employees_non_ugandan]} total={form.youth_employed_count} label="Ugandan + Non-Ugandan" />
+            </div>
+          )}
+
           {form.employment_category === "improved_employment" && (
             <div>
               <label className="block text-sm font-medium text-ink/80">If improved, what improved?</label>
@@ -231,6 +300,27 @@ export default function PlacementForm({ placement, canEdit }: { placement: Place
       {errorPopup && <ErrorPopup message={errorPopup} onClose={() => setErrorPopup(null)} />}
     </>
   );
+}
+
+function NumberField({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+  return (
+    <div>
+      <label className="block text-xs text-ink/60">{label}</label>
+      <input type="number" min={0} value={value} onChange={(e) => onChange(e.target.value)}
+        className="mt-0.5 w-full rounded-md border border-border bg-surface px-3 py-1.5 text-sm" />
+    </div>
+  );
+}
+
+// Non-blocking check: flags when a breakdown doesn't add up to the total,
+// so mismatched figures get noticed at entry time rather than in a report.
+function SumCheck({ parts, total, label }: { parts: string[]; total: string; label: string }) {
+  const totalNum = strToInt(total);
+  const filled = parts.filter((p) => p !== "");
+  if (totalNum === null || filled.length === 0) return null;
+  const sum = parts.reduce((acc, p) => acc + (strToInt(p) ?? 0), 0);
+  if (sum === totalNum) return null;
+  return <p className="mt-1 text-xs text-warning">{label} = {sum}, which doesn't match the total of {totalNum}.</p>;
 }
 
 function Row({ label, value }: { label: string; value: string | null | undefined }) {

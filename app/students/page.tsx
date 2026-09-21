@@ -28,7 +28,7 @@ export default async function StudentsPage({
   let query = supabase
     .from("student_overview")
     .select(
-      "student_id, full_name, program_name, cohort_name, graduation_date, placement_status, company_name, placement_date, days_since_graduation, disability_status, refugee_status, assigned_staff_name",
+      "student_id, full_name, program_name, cohort_name, graduation_date, placement_status, company_name, placement_date, location, days_since_graduation, disability_status, refugee_status, assigned_staff_name",
       { count: "exact" }
     )
     .order("graduation_date", { ascending: false })
@@ -59,7 +59,7 @@ export default async function StudentsPage({
           Couldn&apos;t load students: {error.message}. Check that all migrations have been run.
         </p>
       )}
-      <StudentTable rows={rows ?? []} />
+      <StudentTable rows={(rows ?? []) as any} />
       <Pagination page={page} pageSize={pageSize} totalCount={count ?? 0} />
     </div>
   );

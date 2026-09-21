@@ -1,3 +1,5 @@
+
+
 import Link from "next/link";
 import StatusBadge, { InclusionBadge } from "./StatusBadge";
 import clsx from "clsx";
@@ -5,7 +7,7 @@ import clsx from "clsx";
 export type StudentRow = {
   student_id: string; full_name: string; program_name: string | null; cohort_name: string | null;
   graduation_date: string | null; placement_status: string | null; company_name: string | null;
-  placement_date: string | null;
+  placement_date: string | null; location: string | null;
   days_since_graduation: number | null; disability_status?: string | null; refugee_status?: string | null;
   assigned_staff_name?: string | null;
 };
@@ -16,13 +18,14 @@ export default function StudentTable({ rows }: { rows: StudentRow[] }) {
   }
 
   return (
-    <div className="overflow-hidden rounded-lg border border-border">
+    <div className="overflow-x-auto rounded-lg border border-border">
       <table className="w-full text-left text-sm">
         <thead className="bg-brand/10 text-xs uppercase tracking-wide text-brand">
           <tr>
-            <th className="px-4 py-3">Name</th><th className="px-4 py-3">Program</th><th className="px-4 py-3">Cohort</th>
-            <th className="px-4 py-3">Graduated</th><th className="px-4 py-3">Days out</th><th className="px-4 py-3">Status</th>
-            <th className="px-4 py-3">Company</th><th className="px-4 py-3">Placement Date</th><th className="px-4 py-3">Assigned</th><th className="px-4 py-3">Inclusion</th>
+            <th className="px-4 py-3">Name</th><th className="px-4 py-3">Location</th><th className="px-4 py-3">Program</th>
+            <th className="px-4 py-3">Cohort</th><th className="px-4 py-3">Graduated</th><th className="px-4 py-3">Days out</th>
+            <th className="px-4 py-3">Status</th><th className="px-4 py-3">Company</th><th className="px-4 py-3">Placement Date</th>
+            <th className="px-4 py-3">Assigned</th><th className="px-4 py-3">Inclusion</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-border">
@@ -35,6 +38,7 @@ export default function StudentTable({ rows }: { rows: StudentRow[] }) {
                     {r.full_name}
                   </Link>
                 </td>
+                <td className="px-4 py-3 text-ink/70">{r.location || "—"}</td>
                 <td className="px-4 py-3 text-ink/70">{r.program_name ?? "—"}</td>
                 <td className="px-4 py-3 text-ink/70">{r.cohort_name ?? "—"}</td>
                 <td className="px-4 py-3 text-ink/70">{r.graduation_date ? new Date(r.graduation_date).toLocaleDateString() : "—"}</td>

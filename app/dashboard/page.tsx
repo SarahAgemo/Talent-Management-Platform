@@ -12,7 +12,7 @@ async function fetchAllStudentRows(supabase: any) {
   while (true) {
     const { data, error } = await supabase
       .from("student_overview")
-      .select("program_name, graduation_date, placement_date, placement_status, position_title, sponsorship_type")
+      .select("program_name, graduation_date, placement_date, placement_status, position_title, sponsorship_type, assigned_staff_name, employment_type")
       .range(from, from + pageSize - 1);
     if (error) throw error;
     if (!data || data.length === 0) break;
@@ -50,7 +50,7 @@ export default async function DashboardPage() {
 
       <div className="rounded-lg border border-border bg-surface p-5">
         <h2 className="font-display text-lg font-semibold text-brand">Staff Accountability Overview</h2>
-        <p className="text-xs text-accent">Placed against each staff member's actual caseload — no fixed target, just who's allocated to them.</p>
+        <p className="text-xs text-accent">Current snapshot — placed against each staff member's actual caseload right now.</p>
         <div className="mt-3">
           <StaffAccountabilityTable staffKpis={(staffKpis ?? []) as any} />
         </div>

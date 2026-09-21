@@ -91,6 +91,15 @@ const MONTH_NAMES: Record<string, number> = {
   sep: 9, sept: 9, september: 9, oct: 10, october: 10, nov: 11, november: 11, dec: 12, december: 12
 };
 
+// Bounds for accepting an Excel-serial-derived date. A number like "1905"
+// technically matches Excel's date system (it computes to 1905-03-19),
+// but that's never a real date for this program — bounding acceptance to
+// a plausible operating window means implausible values are now REJECTED
+// (surfaced as a normal "couldn't parse" upload error) instead of
+// silently becoming a wrong-but-valid-looking historical date.
+const PLAUSIBLE_YEAR_MIN = 2018;
+const PLAUSIBLE_YEAR_MAX = 2035;
+
 function parseDate(raw: string | undefined): string | null {
   if (!raw) return null;
   const trimmed = String(raw).trim().replace(/(\d+)(st|nd|rd|th)\b/gi, "$1");
@@ -128,7 +137,11 @@ function parseDate(raw: string | undefined): string | null {
     const serial = parseInt(trimmed, 10);
     const excelEpoch = new Date(Date.UTC(1899, 11, 30));
     const d = new Date(excelEpoch.getTime() + serial * 86400000);
-    if (!isNaN(d.getTime())) return d.toISOString().slice(0, 10);
+    const year = d.getUTCFullYear();
+    if (!isNaN(d.getTime()) && year >= PLAUSIBLE_YEAR_MIN && year <= PLAUSIBLE_YEAR_MAX) {
+      return d.toISOString().slice(0, 10);
+    }
+    return null; // implausible — treat as unparseable rather than guess
   }
   const d = new Date(trimmed);
   return isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10);
@@ -276,13 +289,18 @@ export async function POST(req: NextRequest) {
 
       const { status, employmentType } = mapStatusAndEmploymentType(row["Placement Status"]);
 
+      const placementDate = parseDate(row["Placement Date"]);
+      if (row["Placement Date"] && !placementDate) {
+        errors.push(`Row ${i + 2} (${fullName}): couldn't parse Placement Date "${row["Placement Date"]}" — left blank rather than guessing.`);
+      }
+
       const placementPayload: Record<string, any> = {
         student_id: student.id,
         status,
         company_name: row["Company Name"] || null,
         position_title: row["Position Title"] || null,
         employment_type: employmentType ?? mapEmploymentTypeFromTitle(row["Position Title"]),
-        placement_date: parseDate(row["Placement Date"]),
+        placement_date: placementDate,
         salary_compensation: row["Salary/Compensation"] || null
       };
       if (!isUpdate && row["Notes"]) placementPayload.notes = row["Notes"];
