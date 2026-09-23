@@ -38,6 +38,12 @@ const IMPROVEMENT_TYPES = [
   { value: "other", label: "Other" }
 ];
 
+const SALARY_BANDS = [
+  "Below UGX 270,000",
+  "UGX 270,000 - UGX 1,000,000",
+  "Above UGX 1,000,000"
+];
+
 const SELF_EMPLOYMENT_KEYS = [
   "youth_employed_count", "employees_female", "employees_male",
   "employees_below_18", "employees_18_35", "employees_above_35",
@@ -49,6 +55,10 @@ function strToInt(v: string): number | null {
   const n = parseInt(v, 10);
   return isNaN(n) || n < 0 ? null : n;
 }
+function todayISO() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
 
 function initialForm(p: Placement) {
   return {
@@ -57,6 +67,7 @@ function initialForm(p: Placement) {
     employment_category: p.employment_category ?? "",
     improvement_type: p.improvement_type ?? "",
     improvement_other_detail: p.improvement_other_detail ?? "",
+    salary_compensation: p.salary_compensation ?? "",
     youth_employed_count: numToStr(p.youth_employed_count),
     employees_female: numToStr(p.employees_female),
     employees_male: numToStr(p.employees_male),
@@ -77,6 +88,19 @@ export default function PlacementForm({ placement, canEdit }: { placement: Place
   const supabase = createClient();
 
   const isSelfEmployed = form.employment_type === "self_employed";
+
+  // An older free-text salary that doesn't match any band is kept as a
+  // selectable option, so opening and saving the form can't silently
+  // wipe a figure nobody has mapped yet.
+  const legacySalary =
+    form.salary_compensation && !SALARY_BANDS.includes(form.salary_compensation)
+      ? form.salary_compensation
+      : null;
+
+  // When the status moves to Placed and no date is on file, the save
+  // stamps today's date so the placement counts in this month's totals.
+  // An existing date is never overwritten.
+  const willAutoStampDate = form.status === "placed" && placement.status !== "placed" && !form.placement_date;
 
   function handleEmploymentTypeChange(value: string) {
     setForm({
@@ -108,19 +132,19 @@ export default function PlacementForm({ placement, canEdit }: { placement: Place
     setSaving(true);
     setMessage(null);
 
-    // Self-employment numbers are only stored while the type is actually
-    // Self-Employed — switching to any other type clears them on save, so
-    // stale business figures can't linger on a full-time placement.
     const selfEmploymentPayload: Record<string, number | null> = {};
     for (const key of SELF_EMPLOYMENT_KEYS) {
       selfEmploymentPayload[key] = isSelfEmployed ? strToInt(form[key]) : null;
     }
 
+    const placementDateToSave = form.placement_date || (willAutoStampDate ? todayISO() : null);
+
     const { data, error } = await supabase.from("placements").update({
       status: form.status, company_name: form.company_name, position_title: form.position_title,
       employment_type: form.employment_type,
-      placement_date: form.placement_date || null,
-      salary_compensation: form.salary_compensation, notes: form.notes,
+      placement_date: placementDateToSave,
+      salary_compensation: form.salary_compensation || null,
+      notes: form.notes,
       needs_further_support: form.needs_further_support,
       employment_category: form.employment_category || null,
       improvement_type: form.employment_category === "improved_employment" ? (form.improvement_type || null) : null,
@@ -139,7 +163,7 @@ export default function PlacementForm({ placement, canEdit }: { placement: Place
       setForm(initialForm(placement));
       return;
     }
-    setMessage("Saved.");
+    setMessage(placementDateToSave && !form.placement_date ? `Saved — placement date set to ${placementDateToSave}.` : "Saved.");
     router.refresh();
   }
 
@@ -186,6 +210,11 @@ export default function PlacementForm({ placement, canEdit }: { placement: Place
             className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm">
             {Object.entries(STATUS_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
           </select>
+          {willAutoStampDate && (
+            <p className="mt-1 text-xs text-accent">
+              No placement date on file — saving will record today ({todayISO()}) so this counts in this month&apos;s figures. Set a date below to use a different one.
+            </p>
+          )}
         </div>
         <div className="grid grid-cols-2 gap-4">
           <div>
@@ -273,10 +302,17 @@ export default function PlacementForm({ placement, canEdit }: { placement: Place
               className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm" />
             <p className="mt-1 text-xs text-ink/40">Clear this field to remove the date entirely.</p>
           </div>
-          <div className="col-span-2">
+          <div>
             <label className="block text-sm font-medium text-ink/80">Salary / compensation</label>
-            <input value={form.salary_compensation ?? ""} onChange={(e) => setForm({ ...form, salary_compensation: e.target.value })}
-              className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm" />
+            <select value={form.salary_compensation} onChange={(e) => setForm({ ...form, salary_compensation: e.target.value })}
+              className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm">
+              <option value="">—</option>
+              {SALARY_BANDS.map((b) => <option key={b} value={b}>{b}</option>)}
+              {legacySalary && <option value={legacySalary}>{legacySalary} (previously recorded)</option>}
+            </select>
+            {legacySalary && (
+              <p className="mt-1 text-xs text-warning">This is an older free-text entry — pick a band above to update it.</p>
+            )}
           </div>
           <div className="col-span-2 flex items-center gap-2">
             <input type="checkbox" id="needs_further_support" checked={form.needs_further_support}
@@ -312,15 +348,13 @@ function NumberField({ label, value, onChange }: { label: string; value: string;
   );
 }
 
-// Non-blocking check: flags when a breakdown doesn't add up to the total,
-// so mismatched figures get noticed at entry time rather than in a report.
 function SumCheck({ parts, total, label }: { parts: string[]; total: string; label: string }) {
   const totalNum = strToInt(total);
   const filled = parts.filter((p) => p !== "");
   if (totalNum === null || filled.length === 0) return null;
   const sum = parts.reduce((acc, p) => acc + (strToInt(p) ?? 0), 0);
   if (sum === totalNum) return null;
-  return <p className="mt-1 text-xs text-warning">{label} = {sum}, which doesn't match the total of {totalNum}.</p>;
+  return <p className="mt-1 text-xs text-warning">{label} = {sum}, which doesn&apos;t match the total of {totalNum}.</p>;
 }
 
 function Row({ label, value }: { label: string; value: string | null | undefined }) {
