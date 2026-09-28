@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+/** import { NextRequest, NextResponse } from "next/server";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
 
 const PROGRAM_NORMALIZATION: Record<string, string> = {
@@ -342,4 +342,510 @@ export async function POST(req: NextRequest) {
   }
 
   return NextResponse.json({ inserted, updated, allocated, errors });
+}
+**/
+
+import { NextRequest, NextResponse } from "next/server";
+import { createClient, createAdminClient } from "@/lib/supabase/server";
+
+const PROGRAM_NORMALIZATION: Record<string, string> = {
+  "foundations of software development": "Foundations of Software Development",
+  "foundation of software development": "Foundations of Software Development",
+  "cse - javascript": "Certificate in Software Engineering (JavaScript)",
+  "cse javascript": "Certificate in Software Engineering (JavaScript)",
+  "cse javascipt": "Certificate in Software Engineering (JavaScript)",
+  "certificate in software engineering with javascript": "Certificate in Software Engineering (JavaScript)",
+  "software engineering (javascript)": "Certificate in Software Engineering (JavaScript)",
+  "cse - python": "Certificate in Software Engineering (Python)",
+  "cse python": "Certificate in Software Engineering (Python)",
+  "certificate in software engineering with python": "Certificate in Software Engineering (Python)",
+  "software engineering (python)": "Certificate in Software Engineering (Python)",
+  "data science & ml": "Data Engineering & Analytics",
+  "data science and ml": "Data Engineering & Analytics",
+  "data science and machine learning": "Data Engineering & Analytics",
+  "data engineering & analytics": "Data Engineering & Analytics",
+  "data engineering &analystics": "Data Engineering & Analytics",
+  "data engineering and analytics": "Data Engineering & Analytics",
+  "ai/ml": "AI/ML",
+  "ai / ml": "AI/ML",
+  "ai and machine learning": "AI/ML",
+  "cloud computing": "Cloud Computing",
+  "cybersecurity": "Cybersecurity",
+  "cyber security": "Cybersecurity",
+  "blockchain development": "Blockchain Development",
+  "product development": "Blockchain Development",
+  "product design": "Product Design (UX/UI)",
+  "product design (ux/ui)": "Product Design (UX/UI)",
+  "ui/ux design": "Product Design (UX/UI)",
+  "product management": "Product Management",
+  "apprenticeship": "Apprenticeship"
+};
+
+function normalizeProgramName(raw: string | undefined): string {
+  const trimmed = (raw ?? "").trim();
+  if (!trimmed) return "Unspecified Program";
+  const key = trimmed.toLowerCase().replace(/\s+/g, " ");
+  return PROGRAM_NORMALIZATION[key] ?? trimmed;
+}
+
+function normalizeCohortName(raw: string | undefined): string {
+  const trimmed = (raw ?? "").trim();
+  if (!trimmed) return "Unspecified Cohort";
+  const iso = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) {
+    const d = new Date(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3]));
+    if (!isNaN(d.getTime())) return d.toLocaleString("en-US", { month: "short", year: "numeric" });
+  }
+  const dmy = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (dmy) {
+    const day = parseInt(dmy[1], 10), month = parseInt(dmy[2], 10), year = parseInt(dmy[3], 10);
+    if (month >= 1 && month <= 12) {
+      const d = new Date(year, month - 1, day);
+      if (!isNaN(d.getTime())) return d.toLocaleString("en-US", { month: "short", year: "numeric" });
+    }
+  }
+  return trimmed;
+}
+
+function mapStatusAndEmploymentType(raw: string | undefined): { status: string; employmentType: string | null } {
+  const v = (raw ?? "").trim().toLowerCase();
+  if (!v) return { status: "awaiting_placement", employmentType: null };
+  if (v.includes("back to school") || v === "student") return { status: "further_skilling", employmentType: null };
+  if (v.includes("open to work")) return { status: "awaiting_placement", employmentType: null };
+  if (v.includes("self employ") || v.includes("self-employ")) return { status: "placed", employmentType: "self_employed" };
+  if (v.includes("freelanc") || v.includes("gig")) return { status: "placed", employmentType: "freelance" };
+  if (v.includes("volunteer")) return { status: "placed", employmentType: "unpaid_internship" };
+  if (v.includes("intern")) return { status: "placed", employmentType: "internship" };
+  if (v.includes("employ") || v.includes("emloy") || v.includes("placed")) return { status: "placed", employmentType: null };
+  if (v.includes("interview")) return { status: "interviewing", employmentType: null };
+  if (v.includes("offer")) return { status: "offer_extended", employmentType: null };
+  if (v.includes("apply") || v.includes("applying")) return { status: "applying", employmentType: null };
+  if (v.includes("prep")) return { status: "in_preparation", employmentType: null };
+  if (v.includes("decline") || v.includes("withdraw")) return { status: "declined_withdrawn", employmentType: null };
+  if (v.includes("further skill")) return { status: "further_skilling", employmentType: null };
+  return { status: "awaiting_placement", employmentType: null };
+}
+
+function mapEmploymentTypeFromTitle(raw: string | undefined): string | null {
+  const v = (raw ?? "").trim().toLowerCase();
+  if (v.includes("intern")) return "internship";
+  if (v.includes("freelance")) return "freelance";
+  if (v.includes("contract")) return "contract";
+  if (v.includes("part-time") || v.includes("part time")) return "part_time";
+  return null;
+}
+
+// "Graduated" / "Not Graduated" (also accepts Yes / No). Empty means the
+// column wasn't filled in; "invalid" means it was, with something unknown.
+function normalizeCompletion(raw: string | undefined): "graduated" | "not_graduated" | null | "invalid" {
+  const v = (raw ?? "").trim().toLowerCase().replace(/[\s_-]+/g, " ");
+  if (!v) return null;
+  if (["graduated", "yes", "y", "completed", "complete"].includes(v)) return "graduated";
+  if (["not graduated", "no", "n", "not completed", "did not complete", "incomplete"].includes(v)) return "not_graduated";
+  return "invalid";
+}
+
+function mapEmploymentCategory(raw: string | undefined): string | null | "invalid" {
+  const v = (raw ?? "").trim().toLowerCase();
+  if (!v) return null;
+  if (v.startsWith("improved")) return "improved_employment";
+  if (v.startsWith("new")) return "new_employment";
+  return "invalid";
+}
+
+function mapImprovement(raw: string | undefined): { type: string | null; detail: string | null } {
+  const text = (raw ?? "").trim();
+  const v = text.toLowerCase();
+  if (!v) return { type: null, detail: null };
+  if (v.includes("working condition") && !v.includes("income")) return { type: "improved_working_conditions", detail: null };
+  if ((v.includes("income") || v.includes("salary")) && !v.includes("working condition")) return { type: "income_increase", detail: null };
+  if (v === "other") return { type: "other", detail: null };
+  return { type: "other", detail: text };
+}
+
+// Every phone number in a field, reduced to its last 9 digits, so
+// "+256 772 123456", "0772123456" and "256772123456" compare equal and
+// a field holding two numbers ("0772…/0701…") matches on either.
+function phoneKeys(raw: string | null | undefined): string[] {
+  const keys: string[] = [];
+  for (const chunk of String(raw ?? "").split(/[\/,;&]| or /i)) {
+    const digits = chunk.replace(/\D/g, "");
+    if (digits.length >= 9) keys.push(digits.slice(-9));
+  }
+  return keys;
+}
+
+const MONTH_NAMES: Record<string, number> = {
+  jan: 1, january: 1, feb: 2, february: 2, mar: 3, march: 3, apr: 4, april: 4,
+  may: 5, jun: 6, june: 6, jul: 7, july: 7, aug: 8, august: 8,
+  sep: 9, sept: 9, september: 9, oct: 10, october: 10, nov: 11, november: 11, dec: 12, december: 12
+};
+
+// Bounds for accepting an Excel-serial-derived date — implausible values
+// are rejected (reported) instead of becoming a wrong historical date.
+const PLAUSIBLE_YEAR_MIN = 2018;
+const PLAUSIBLE_YEAR_MAX = 2035;
+
+function parseDate(raw: string | undefined): string | null {
+  if (!raw) return null;
+  const trimmed = String(raw).trim().replace(/(\d+)(st|nd|rd|th)\b/gi, "$1");
+  if (!trimmed) return null;
+
+  const iso = trimmed.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (iso) {
+    const [, y, m, d] = iso;
+    return `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
+  }
+  const dmy = trimmed.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})$/);
+  if (dmy) {
+    const [, day, month, year] = dmy;
+    let d = parseInt(day, 10);
+    let m = parseInt(month, 10);
+    if (m > 12 && d <= 12) [d, m] = [m, d];
+    if (m >= 1 && m <= 12 && d >= 1 && d <= 31) {
+      return `${year}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+    }
+    return null;
+  }
+  const dMonY = trimmed.match(/^(\d{1,2})\s+([A-Za-z]+)\.?\s+(\d{4})$/);
+  if (dMonY) {
+    const [, day, monthName, year] = dMonY;
+    const m = MONTH_NAMES[monthName.toLowerCase()];
+    if (m) return `${year}-${String(m).padStart(2, "0")}-${day.padStart(2, "0")}`;
+  }
+  const monDY = trimmed.match(/^([A-Za-z]+)\.?\s+(\d{1,2}),?\s+(\d{4})$/);
+  if (monDY) {
+    const [, monthName, day, year] = monDY;
+    const m = MONTH_NAMES[monthName.toLowerCase()];
+    if (m) return `${year}-${String(m).padStart(2, "0")}-${day.padStart(2, "0")}`;
+  }
+  if (/^\d{4,6}$/.test(trimmed)) {
+    const serial = parseInt(trimmed, 10);
+    const excelEpoch = new Date(Date.UTC(1899, 11, 30));
+    const d = new Date(excelEpoch.getTime() + serial * 86400000);
+    const year = d.getUTCFullYear();
+    if (!isNaN(d.getTime()) && year >= PLAUSIBLE_YEAR_MIN && year <= PLAUSIBLE_YEAR_MAX) {
+      return d.toISOString().slice(0, 10);
+    }
+    return null;
+  }
+  const d = new Date(trimmed);
+  return isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10);
+}
+
+const DEFAULT_ALLOCATION_WINDOW_DAYS = 30;
+
+type KnownStudent = {
+  id: string; full_name: string; email: string | null; phone_number: string | null;
+  created_at: string; completion_status: string | null;
+};
+
+// Every student currently in the system, read in stable pages (the API
+// silently caps a single read at 1,000 rows). Used to match rows by email
+// regardless of capitals/spaces, and to catch a "new" person whose phone
+// number already belongs to someone in the system.
+async function loadAllStudents(supabase: any): Promise<KnownStudent[]> {
+  const pageSize = 1000;
+  let all: KnownStudent[] = [];
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await supabase
+      .from("students")
+      .select("id, full_name, email, phone_number, created_at, completion_status")
+      .order("id")
+      .range(from, from + pageSize - 1);
+    if (error) throw error;
+    if (!data || data.length === 0) break;
+    all = all.concat(data as KnownStudent[]);
+    if (data.length < pageSize) break;
+  }
+  return all;
+}
+
+// Adds the program enrolment if the student doesn't have this program yet;
+// otherwise keeps the earliest known graduation date. Returns true if added.
+async function ensureEnrollment(supabase: any, studentId: string, programId: string, cohortId: string, graduationDate: string | null): Promise<boolean> {
+  const { data: existingForProgram, error: lookupError } = await supabase
+    .from("enrollments")
+    .select("id, graduation_date, cohorts!inner(program_id)")
+    .eq("student_id", studentId)
+    .eq("cohorts.program_id", programId);
+  if (lookupError) throw lookupError;
+  if (!existingForProgram || existingForProgram.length === 0) {
+    const { error: enrollError } = await supabase.from("enrollments")
+      .insert({ student_id: studentId, cohort_id: cohortId, graduation_date: graduationDate });
+    if (enrollError) throw enrollError;
+    return true;
+  }
+  const current = existingForProgram[0] as { id: string; graduation_date: string | null };
+  if (graduationDate && (!current.graduation_date || graduationDate < current.graduation_date)) {
+    const { error: updateEnrollError } = await supabase.from("enrollments")
+      .update({ cohort_id: cohortId, graduation_date: graduationDate }).eq("id", current.id);
+    if (updateEnrollError) throw updateEnrollError;
+  }
+  return false;
+}
+
+export async function POST(req: NextRequest) {
+  const cookieClient = createClient();
+  const { data: { user } } = await cookieClient.auth.getUser();
+  if (!user) {
+    return NextResponse.json({ error: "You must be signed in to upload students." }, { status: 401 });
+  }
+  const { data: me } = await cookieClient.from("staff_users").select("role").eq("id", user.id).maybeSingle();
+  if (!me || !["super_admin", "placement_admin"].includes(me.role)) {
+    return NextResponse.json({ error: "Only Admins can upload student data." }, { status: 403 });
+  }
+
+  const body = await req.json();
+  const rows: any[] = body.rows ?? [];
+  const offset: number = Number(body.offset) || 0;
+  // "add_only": never change anyone already in the system — only add new
+  // students, plus a missing program enrolment for an existing student.
+  // "upsert" (the original behaviour): students matched by email are updated.
+  const addOnly = body.mode === "add_only";
+  // The upload's start time comes from the server on the first batch and is
+  // sent back with every later batch, so "already in the system" means
+  // "existed before this upload began" regardless of the browser's clock.
+  const startedAtIso: string = typeof body.startedAt === "string" && !isNaN(Date.parse(body.startedAt))
+    ? body.startedAt : new Date().toISOString();
+  const startedAt = Date.parse(startedAtIso);
+
+  const supabase = createAdminClient();
+  const errors: string[] = [];
+  const warnings: string[] = [];
+  const held: string[] = [];
+  let inserted = 0, updated = 0, allocated = 0, enrollmentsAdded = 0, unchanged = 0;
+
+  let known: KnownStudent[];
+  try {
+    known = await loadAllStudents(supabase);
+  } catch (err: any) {
+    const msg = String(err?.message ?? "");
+    return NextResponse.json({
+      error: msg.includes("completion_status")
+        ? "The database is missing the Graduated / Not Graduated column. Run add_completion_status.sql in Supabase first, then try again."
+        : `Couldn't read existing students: ${msg || "unknown error"}`
+    }, { status: 500 });
+  }
+  const byEmail = new Map<string, KnownStudent[]>();
+  const byPhone = new Map<string, KnownStudent[]>();
+  const remember = (s: KnownStudent) => {
+    const e = (s.email ?? "").trim().toLowerCase();
+    if (e) byEmail.set(e, [...(byEmail.get(e) ?? []), s]);
+    for (const k of phoneKeys(s.phone_number)) byPhone.set(k, [...(byPhone.get(k) ?? []), s]);
+  };
+  known.forEach(remember);
+  const existedBeforeUpload = (s: KnownStudent) => new Date(s.created_at).getTime() < startedAt;
+
+  const programCache = new Map<string, string>();
+  const cohortCache = new Map<string, string>();
+  const staffByNameCache = new Map<string, string | null>();
+
+  for (const [i, row] of rows.entries()) {
+    const rowNo = offset + i + 2; // matches the row number in the spreadsheet
+    try {
+      const fullName = row["Full Name"]?.trim();
+      if (!fullName) {
+        errors.push(`Row ${rowNo}: missing Full Name, skipped.`);
+        continue;
+      }
+      const label = `Row ${rowNo} (${fullName})`;
+
+      const email: string | null = row["Email"]?.trim() || null;
+      const matches = email ? byEmail.get(email.toLowerCase()) ?? [] : [];
+      if (matches.length > 1) {
+        errors.push(`${label}: ${matches.length} students in the system already share the email ${email} — skipped so neither is overwritten. Fix the duplicate first.`);
+        continue;
+      }
+      const existing = matches[0] ?? null;
+
+      if (!existing && addOnly) {
+        const allowSharedPhone = /^(y|yes|true)$/i.test(String(row["Allow Shared Phone"] ?? "").trim());
+        const clash = allowSharedPhone ? null : phoneKeys(row["Phone Number"])
+          .flatMap((k) => byPhone.get(k) ?? [])
+          .find((s) => existedBeforeUpload(s));
+        if (clash) {
+          held.push(`${label}: not added — phone ${row["Phone Number"]} already belongs to ${clash.full_name} (${clash.email ?? "no email"}). If they are different people, put Yes in "Allow Shared Phone" for this row and upload it again.`);
+          continue;
+        }
+      }
+
+      const completion = normalizeCompletion(row["Completion Status"]);
+      if (completion === "invalid") {
+        warnings.push(`${label}: Completion Status "${row["Completion Status"]}" not recognised (use Graduated or Not Graduated) — ignored.`);
+      }
+
+      const programName = normalizeProgramName(row["Program Name"]);
+      let programId = programCache.get(programName);
+      if (!programId) {
+        const { data: existingProgram } = await supabase.from("programs").select("id").eq("name", programName).maybeSingle();
+        if (existingProgram) programId = existingProgram.id;
+        else {
+          const { data: created, error } = await supabase.from("programs").insert({ name: programName, level: "Unspecified" }).select("id").single();
+          if (error) throw error;
+          programId = created.id;
+        }
+        programCache.set(programName, programId!);
+      }
+
+      const cohortName = normalizeCohortName(row["Cohort"]);
+      const cohortKey = `${programId}:${cohortName}`;
+      let cohortId = cohortCache.get(cohortKey);
+      if (!cohortId) {
+        const { data: existingCohort } = await supabase.from("cohorts").select("id").eq("program_id", programId).eq("cohort_name", cohortName).maybeSingle();
+        if (existingCohort) cohortId = existingCohort.id;
+        else {
+          const { data: created, error } = await supabase.from("cohorts").insert({ program_id: programId, cohort_name: cohortName }).select("id").single();
+          if (error) throw error;
+          cohortId = created.id;
+        }
+        cohortCache.set(cohortKey, cohortId!);
+      }
+
+      const graduationDate = parseDate(row["Graduation Date"]);
+      if (row["Graduation Date"]?.trim() && !graduationDate) {
+        warnings.push(`${label}: couldn't read Graduation Date "${row["Graduation Date"]}" — enrolled without a date.`);
+      }
+
+      // ---- Add-only mode: anyone already matched by email is never changed —
+      // at most, a program enrolment she doesn't have yet is added. (This also
+      // covers the 2nd program row of someone created earlier in this upload.)
+      if (addOnly && existing) {
+        const added = await ensureEnrollment(supabase, existing.id, programId!, cohortId!, graduationDate);
+        if (added) {
+          enrollmentsAdded++;
+          if (existedBeforeUpload(existing)) {
+            warnings.push(`${label}: already in the system — only added her ${programName} enrolment. Nothing else about her was changed.`);
+          }
+        } else {
+          unchanged++;
+        }
+        continue;
+      }
+
+      const location: string | null = row["Location"]?.trim() || null;
+      let student: { id: string } | null = null;
+      let isUpdate = false;
+
+      if (existing) {
+        const updatePayload: Record<string, any> = {
+          full_name: fullName,
+          gender: row["Gender"] || null,
+          nationality: row["Nationality"] || null,
+          refugee_status: row["Refugee Status"] || null,
+          disability_status: row["Disability status"] || null,
+          disability_type: row["Type of Disability"] || null,
+          phone_number: row["Phone Number"] || null,
+          sponsorship_type: row["Sponsorship Type"]?.trim() || null,
+          education_level: row["Education Level"] || null,
+          technical_skills: row["Technical Languages"] || null,
+          technical_proficiency: row["Technical Proficiency"] || null,
+          career_track_interest: row["Career Track of Interest"] || null
+        };
+        if (location) updatePayload.location = location;
+        // An upload can mark someone Graduated, but never takes a graduate back to Not Graduated.
+        if (completion === "graduated") updatePayload.completion_status = "graduated";
+        if (completion === "not_graduated" && existing.completion_status === "graduated") {
+          warnings.push(`${label}: file says Not Graduated but she is recorded as Graduated — kept as Graduated. Change it on her profile if that's wrong.`);
+        }
+        const { data: updatedRow, error: updateError } = await supabase
+          .from("students").update(updatePayload).eq("id", existing.id).select("id").single();
+        if (updateError) throw updateError;
+        student = updatedRow;
+        isUpdate = true;
+      } else {
+        const { data: created, error: studentError } = await supabase
+          .from("students")
+          .insert({
+            full_name: fullName,
+            gender: row["Gender"] || null,
+            nationality: row["Nationality"] || null,
+            refugee_status: row["Refugee Status"] || null,
+            disability_status: row["Disability status"] || null,
+            disability_type: row["Type of Disability"] || null,
+            email, phone_number: row["Phone Number"] || null,
+            location,
+            sponsorship_type: row["Sponsorship Type"]?.trim() || null,
+            education_level: row["Education Level"] || null,
+            technical_skills: row["Technical Languages"] || null,
+            technical_proficiency: row["Technical Proficiency"] || null,
+            career_track_interest: row["Career Track of Interest"] || null,
+            completion_status: completion === "not_graduated" ? "not_graduated" : "graduated"
+          })
+          .select("id, full_name, email, phone_number, created_at, completion_status").single();
+        if (studentError) throw studentError;
+        student = created;
+        remember(created as KnownStudent); // later rows for the same person attach to this record
+      }
+
+      if (!student) throw new Error("Failed to create or locate student record");
+
+      await ensureEnrollment(supabase, student.id, programId!, cohortId!, graduationDate);
+
+      const { status, employmentType } = mapStatusAndEmploymentType(row["Placement Status"]);
+      const placementDate = parseDate(row["Placement Date"]);
+      if (row["Placement Date"] && !placementDate) {
+        warnings.push(`${label}: couldn't read Placement Date "${row["Placement Date"]}" — left blank rather than guessing.`);
+      }
+
+      const placementPayload: Record<string, any> = {
+        student_id: student.id,
+        status,
+        company_name: row["Company Name"] || null,
+        position_title: row["Position Title"] || null,
+        employment_type: employmentType ?? mapEmploymentTypeFromTitle(row["Position Title"]),
+        placement_date: placementDate,
+        salary_compensation: row["Salary/Compensation"] || null
+      };
+      if (!isUpdate && row["Notes"]) placementPayload.notes = row["Notes"];
+      if ("Employment Category" in row) {
+        const category = mapEmploymentCategory(row["Employment Category"]);
+        if (category === "invalid") {
+          warnings.push(`${label}: Employment Category "${row["Employment Category"]}" not recognised (use New Employment or Improved Employment) — left blank.`);
+          placementPayload.employment_category = null;
+        } else {
+          placementPayload.employment_category = category;
+        }
+        const improvement = category === "improved_employment" ? mapImprovement(row["What Improved"]) : { type: null, detail: null };
+        placementPayload.improvement_type = improvement.type;
+        placementPayload.improvement_other_detail = improvement.detail;
+      }
+
+      const { error: placementError } = await supabase.from("placements").upsert(placementPayload, { onConflict: "student_id" });
+      if (placementError) throw placementError;
+
+      const assignedName = row["Assigned"]?.trim();
+      if (assignedName) {
+        const { data: existingAllocation } = await supabase
+          .from("allocations").select("id").eq("student_id", student.id).eq("allocation_status", "active").maybeSingle();
+
+        if (!existingAllocation) {
+          const cacheKey = assignedName.toLowerCase();
+          let staffId = staffByNameCache.get(cacheKey);
+          if (staffId === undefined) {
+            const { data: staffMatch } = await supabase.from("staff_users").select("id").ilike("name", assignedName).maybeSingle();
+            staffId = staffMatch?.id ?? null;
+            staffByNameCache.set(cacheKey, staffId ?? null);
+          }
+          if (staffId) {
+            const deadline = new Date(Date.now() + DEFAULT_ALLOCATION_WINDOW_DAYS * 86400000).toISOString().slice(0, 10);
+            const { error: allocError } = await supabase.from("allocations").insert({
+              student_id: student.id, assigned_to: staffId, assigned_by: user.id,
+              deadline, allocation_status: "active", reason: "Pre-assigned via CSV upload"
+            });
+            if (allocError) throw allocError;
+            allocated++;
+          } else {
+            warnings.push(`${label}: "Assigned" value "${assignedName}" didn't match any staff member by name — left unallocated.`);
+          }
+        }
+      }
+
+      if (isUpdate) updated++; else inserted++;
+    } catch (err: any) {
+      errors.push(`Row ${rowNo}: ${err.message ?? "unknown error"}`);
+    }
+  }
+
+  return NextResponse.json({ startedAt: startedAtIso, inserted, updated, allocated, enrollmentsAdded, unchanged, held, warnings, errors });
 }

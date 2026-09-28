@@ -8,9 +8,12 @@ export default async function AllocationsPage() {
   const supabase = createClient();
   const today = new Date().toISOString().slice(0, 10);
 
+  const { data: { user } } = await supabase.auth.getUser();
+  const { data: me } = user ? await supabase.from("staff_users").select("role").eq("id", user.id).maybeSingle() : { data: null };
+  const isAdmin = me?.role === "super_admin" || me?.role === "placement_admin";
+
   const { data: staff } = await supabase.from("staff_users").select("id, name, is_inclusion_lead").order("name");
 
-  // Needs allocation: unallocated, active, not-yet-placed students.
   const { data: needsRows } = await supabase
     .from("student_overview")
     .select("student_id, full_name, program_name, placement_status, days_since_graduation, disability_status, refugee_status, needs_inclusion_support, assigned_to, allocation_deadline")
@@ -21,8 +24,6 @@ export default async function AllocationsPage() {
     (r) => !r.assigned_to || (r.allocation_deadline && r.allocation_deadline < today)
   );
 
-  // Everyone currently allocated, with first-vs-current assignee — one row
-  // per active allocation, straight from the view.
   const { data: allocated } = await supabase
     .from("allocation_overview")
     .select("*")
@@ -33,14 +34,21 @@ export default async function AllocationsPage() {
       <div>
         <h1 className="font-display text-2xl font-semibold text-brand">Allocations</h1>
         <p className="text-sm text-accent">
-          Allocate or reallocate students to staff directly from the table below, with a deadline set at the same time.
+          {isAdmin
+            ? "Allocate or reallocate students to staff directly from the table below, with a deadline set at the same time."
+            : "A view of who's allocated to whom. Only Admins can allocate or reallocate students."}
         </p>
       </div>
-      <AllocationBoard needsAllocation={needsAllocation as any} allocated={(allocated ?? []) as any} staff={(staff ?? []) as any} />
+      <AllocationBoard
+        needsAllocation={needsAllocation as any}
+        allocated={(allocated ?? []) as any}
+        staff={(staff ?? []) as any}
+        isAdmin={isAdmin}
+      />
     </div>
   );
 }
-*/
+**/
 
 export const dynamic = "force-dynamic";
 
@@ -57,13 +65,23 @@ export default async function AllocationsPage() {
 
   const { data: staff } = await supabase.from("staff_users").select("id, name, is_inclusion_lead").order("name");
 
-  const { data: needsRows } = await supabase
-    .from("student_overview")
-    .select("student_id, full_name, program_name, placement_status, days_since_graduation, disability_status, refugee_status, needs_inclusion_support, assigned_to, allocation_deadline")
-    .neq("placement_status", "placed")
-    .order("full_name");
+  // Read in stable pages — a single read stops at 1,000 rows, which would
+  // silently hide students from the Needs Allocation list.
+  const needsRows: any[] = [];
+  for (let from = 0; ; from += 1000) {
+    const { data } = await supabase
+      .from("student_overview")
+      .select("student_id, full_name, program_name, placement_status, days_since_graduation, disability_status, refugee_status, needs_inclusion_support, assigned_to, allocation_deadline, completion_status")
+      .neq("placement_status", "placed")
+      .order("full_name")
+      .order("student_id")
+      .range(from, from + 999);
+    if (!data || data.length === 0) break;
+    needsRows.push(...data);
+    if (data.length < 1000) break;
+  }
 
-  const needsAllocation = (needsRows ?? []).filter(
+  const needsAllocation = needsRows.filter(
     (r) => !r.assigned_to || (r.allocation_deadline && r.allocation_deadline < today)
   );
 
