@@ -327,7 +327,7 @@ export default function PlacementForm({ placement, canEdit }: { placement: Place
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <button type="submit" disabled={saving} className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-accent-dark disabled:opacity-60">
+          <button type="submit" disabled={saving} className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-dark disabled:opacity-60">
             {saving ? "Saving…" : "Save changes"}
           </button>
           {message && <span className="text-sm text-ink/60">{message}</span>}

@@ -59,7 +59,7 @@ export default function ActivityLog({ studentId, entries, canEdit }: { studentId
           )}
           <input placeholder="Notes (optional)" value={notes} onChange={(e) => setNotes(e.target.value)}
             className="w-full rounded-md border border-border px-3 py-1.5 text-sm" />
-          <button type="submit" disabled={saving} className="rounded-md bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-accent-dark disabled:opacity-60">
+          <button type="submit" disabled={saving} className="rounded-md bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-dark disabled:opacity-60">
             {saving ? "Logging…" : "Log activity"}
           </button>
         </form>

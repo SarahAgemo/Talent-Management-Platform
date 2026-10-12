@@ -55,14 +55,14 @@ export default function AllocationModal({
   }
 
   return (
-    <div style={{ position: "fixed", inset: 0 }} className="z-50 flex items-center justify-center bg-ink/40 p-4">
+    <div style={{ position: "fixed", inset: 0, margin: 0 }} className="z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
       <div className="w-full max-w-md rounded-xl border border-border bg-surface p-6 shadow-lg">
         <h2 className="font-display text-lg font-semibold text-brand">
           {isReallocation ? "Reallocate" : "Allocate"} {studentName}
         </h2>
 
         {needsInclusion && (
-          <p className="mt-2 rounded-md bg-purple-50 px-3 py-2 text-xs text-purple-700">
+          <p className="mt-2 rounded-md bg-purple-50 dark:bg-purple-400/15 px-3 py-2 text-xs text-purple-700 dark:text-purple-300">
             This student is flagged for disability/refugee inclusion support — consider
             assigning an Inclusion Lead below.
           </p>
@@ -99,7 +99,7 @@ export default function AllocationModal({
               Cancel
             </button>
             <button type="submit" disabled={saving}
-              className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-accent-dark disabled:opacity-60">
+              className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-dark disabled:opacity-60">
               {saving ? "Saving…" : "Confirm"}
             </button>
           </div>
@@ -163,14 +163,14 @@ export default function AllocationModal({
 
   return (
     <>
-      <div style={{ position: "fixed", inset: 0 }} className="z-50 flex items-center justify-center bg-ink/40 p-4">
+      <div style={{ position: "fixed", inset: 0, margin: 0 }} className="z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
         <div className="w-full max-w-md rounded-xl border border-border bg-surface p-6 shadow-lg">
           <h2 className="font-display text-lg font-semibold text-brand">
             {isReallocation ? "Reallocate" : "Allocate"} {studentName}
           </h2>
 
           {needsInclusion && (
-            <p className="mt-2 rounded-md bg-purple-50 px-3 py-2 text-xs text-purple-700">
+            <p className="mt-2 rounded-md bg-purple-50 dark:bg-purple-400/15 px-3 py-2 text-xs text-purple-700 dark:text-purple-300">
               This student is flagged for disability/refugee inclusion support — consider assigning an Inclusion Lead below.
             </p>
           )}
@@ -205,7 +205,7 @@ export default function AllocationModal({
                 Cancel
               </button>
               <button type="submit" disabled={saving}
-                className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-accent-dark disabled:opacity-60">
+                className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-dark disabled:opacity-60">
                 {saving ? "Saving…" : "Confirm"}
               </button>
             </div>

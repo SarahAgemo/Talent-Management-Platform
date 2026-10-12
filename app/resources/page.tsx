@@ -21,7 +21,7 @@ export default async function ResourcesPage() {
           <p className="text-sm text-accent">CV templates, guides, and placement-support documents.</p>
         </div>
         <a href={JOB_BOARD_URL} target="_blank" rel="noopener noreferrer"
-          className="flex-shrink-0 rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-accent-dark">
+          className="flex-shrink-0 rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-dark">
           View Applicants on Job Board &rarr;
         </a>
       </div>

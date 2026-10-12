@@ -65,7 +65,7 @@ export default function StudentFilters({ programs, staff }: { programs: { id: st
         </select>
 
         <button onClick={() => setParam("inclusion", inclusionOnly ? null : "1")}
-          className={clsx("status-pill border", inclusionOnly ? "border-purple-600 bg-purple-50 text-purple-700" : "border-border text-ink/60 hover:bg-ink/5")}>
+          className={clsx("status-pill border", inclusionOnly ? "border-purple-600 dark:border-purple-400 bg-purple-50 dark:bg-purple-400/15 text-purple-700 dark:text-purple-300" : "border-border text-ink/60 hover:bg-ink/5")}>
           Needs inclusion support only
         </button>
 
@@ -163,7 +163,7 @@ export default function StudentFilters({ programs, staff, sponsorships = [] }: {
         </select>
 
         <button onClick={() => setParam("inclusion", inclusionOnly ? null : "1")}
-          className={clsx("status-pill border", inclusionOnly ? "border-purple-600 bg-purple-50 text-purple-700" : "border-border text-ink/60 hover:bg-ink/5")}>
+          className={clsx("status-pill border", inclusionOnly ? "border-purple-600 dark:border-purple-400 bg-purple-50 dark:bg-purple-400/15 text-purple-700 dark:text-purple-300" : "border-border text-ink/60 hover:bg-ink/5")}>
           Needs inclusion support only
         </button>
 

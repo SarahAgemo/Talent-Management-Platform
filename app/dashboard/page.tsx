@@ -94,7 +94,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: { 
 }
 
 function StatCard({ label, value, tone, sub }: { label: string; value: number; tone?: "success" | "warning" | "purple" | "danger"; sub?: string }) {
-  const color = tone === "success" ? "text-success" : tone === "warning" ? "text-warning" : tone === "purple" ? "text-purple-700" : tone === "danger" ? "text-danger" : "text-ink";
+  const color = tone === "success" ? "text-success" : tone === "warning" ? "text-warning" : tone === "purple" ? "text-purple-700 dark:text-purple-300" : tone === "danger" ? "text-danger" : "text-ink";
   return (
     <div className="rounded-lg border border-border bg-surface p-5">
       <p className="text-sm text-ink/50">{label}</p>
@@ -225,9 +225,11 @@ export default async function DashboardPage({ searchParams }: { searchParams: { 
 }
 
 function StatCard({ label, value, tone, sub }: { label: string; value: number; tone?: "success" | "warning" | "purple" | "danger"; sub?: string }) {
-  const color = tone === "success" ? "text-success" : tone === "warning" ? "text-warning" : tone === "purple" ? "text-purple-700" : tone === "danger" ? "text-danger" : "text-ink";
+  const color = tone === "success" ? "text-success" : tone === "warning" ? "text-warning" : tone === "purple" ? "text-purple-700 dark:text-purple-300" : tone === "danger" ? "text-danger" : "text-ink";
+  const bar = tone === "success" ? "bg-success" : tone === "warning" ? "bg-warning" : tone === "purple" ? "bg-purple-500 dark:bg-purple-400" : tone === "danger" ? "bg-danger" : "bg-brand";
   return (
-    <div className="rounded-lg border border-border bg-surface p-5">
+    <div className="relative overflow-hidden rounded-lg border border-border bg-surface p-5">
+      <span aria-hidden className={`absolute inset-x-0 top-0 h-1 ${bar}`} />
       <p className="text-sm text-ink/50">{label}</p>
       <p className={`mt-1 font-display text-3xl font-semibold ${color}`}>{value}</p>
       {sub && <p className="mt-1 text-xs text-ink/50">{sub}</p>}

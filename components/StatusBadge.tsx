@@ -1,12 +1,12 @@
 const STATUS_STYLES: Record<string, string> = {
   awaiting_placement: "bg-ink/5 text-ink/70",
   in_preparation: "bg-accent-light/50 text-accent",
-  applying: "bg-blue-50 text-blue-700",
+  applying: "bg-blue-50 dark:bg-blue-400/15 text-blue-700 dark:text-blue-300",
   interviewing: "bg-warning/10 text-warning",
   offer_extended: "bg-brand/10 text-brand",
   placed: "bg-success/10 text-success",
   declined_withdrawn: "bg-danger/10 text-danger",
-  further_skilling: "bg-purple-50 text-purple-700"
+  further_skilling: "bg-purple-50 dark:bg-purple-400/15 text-purple-700 dark:text-purple-300"
 };
 
 export const STATUS_LABELS: Record<string, string> = {
@@ -34,8 +34,8 @@ export function InclusionBadge({ disability, refugee }: { disability?: string | 
   if (!isDisability && !isRefugee) return null;
   return (
     <span className="inline-flex gap-1">
-      {isDisability && <span className="status-pill bg-purple-50 text-purple-700" title="Disability status on file">Disability</span>}
-      {isRefugee && <span className="status-pill bg-pink-50 text-pink-700" title="Refugee status on file">Refugee</span>}
+      {isDisability && <span className="status-pill bg-purple-50 dark:bg-purple-400/15 text-purple-700 dark:text-purple-300" title="Disability status on file">Disability</span>}
+      {isRefugee && <span className="status-pill bg-pink-50 dark:bg-pink-400/15 text-pink-700 dark:text-pink-300" title="Refugee status on file">Refugee</span>}
     </span>
   );
 }

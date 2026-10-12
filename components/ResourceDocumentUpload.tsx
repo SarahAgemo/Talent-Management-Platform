@@ -36,7 +36,7 @@ export default function ResourceDocumentUpload() {
       </div>
       <input id="resource-file" type="file" className="text-sm" />
       <div className="flex items-center gap-3">
-        <button type="submit" disabled={uploading} className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-accent-dark disabled:opacity-60">
+        <button type="submit" disabled={uploading} className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-dark disabled:opacity-60">
           {uploading ? "Uploading…" : "Upload"}
         </button>
         {message && <span className="text-sm text-ink/60">{message}</span>}

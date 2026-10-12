@@ -30,12 +30,19 @@ export function friendlyErrorMessage(raw: string | undefined | null): string {
 
 export default function ErrorPopup({ message, onClose }: { message: string; onClose: () => void }) {
   return (
-    <div style={{ position: "fixed", inset: 0 }} className="z-50 flex items-center justify-center bg-ink/40 p-4">
-      <div className="w-full max-w-sm rounded-xl border border-border bg-surface p-6 text-center shadow-lg">
-        <p className="text-3xl">⚠️</p>
-        <h2 className="mt-2 font-display text-lg font-semibold text-brand">Something didn't work</h2>
+    <div style={{ position: "fixed", inset: 0, margin: 0 }} className="z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+      <div role="alertdialog" aria-modal="true" aria-labelledby="error-popup-title"
+        className="w-full max-w-sm rounded-2xl border border-border bg-surface p-6 text-center shadow-2xl">
+        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-danger/10 text-danger">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+            <path d="M12 9v4M12 17h.01" />
+          </svg>
+        </div>
+        <h2 id="error-popup-title" className="mt-4 font-display text-lg font-semibold text-ink">Something didn&apos;t work</h2>
         <p className="mt-2 text-sm text-ink/70">{message}</p>
-        <button onClick={onClose} className="mt-4 rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-accent-dark">
+        <button onClick={onClose} autoFocus
+          className="mt-6 w-full rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-dark">
           Okay
         </button>
       </div>

@@ -288,7 +288,7 @@ export default function DashboardClient({ rows }: { rows: Row[] }) {
           <table className="w-full text-left text-sm">
             <thead className="bg-brand/10 text-xs uppercase tracking-wide text-brand">
               <tr>
-                <th className="sticky left-0 bg-brand/10 px-4 py-2">Staff</th>
+                <th className="sticky-cell-head sticky left-0 px-4 py-2">Staff</th>
                 <th className="whitespace-nowrap px-4 py-2">Before Aug 2026</th>
                 {staffPeriodData.buckets.map((b) => <th key={b} className="whitespace-nowrap px-4 py-2">{b}</th>)}
                 <th className="whitespace-nowrap px-4 py-2">Not Recorded</th>
@@ -307,7 +307,7 @@ export default function DashboardClient({ rows }: { rows: Row[] }) {
               ))}
               {staffPeriodData.staffRows.length > 0 && (
                 <tr className="bg-ink/[0.03] font-medium">
-                  <td className="sticky left-0 bg-ink/[0.03] px-4 py-2">All staff</td>
+                  <td className="sticky-cell-total sticky left-0 px-4 py-2">All staff</td>
                   <td className="px-4 py-2">{staffPeriodData.totals.earlier}</td>
                   {staffPeriodData.totals.counts.map((c, i) => <td key={i} className="px-4 py-2">{c}</td>)}
                   <td className="px-4 py-2">{staffPeriodData.totals.notRecorded}</td>
@@ -338,7 +338,7 @@ export default function DashboardClient({ rows }: { rows: Row[] }) {
           {yearFilter !== "all" && <span className="status-pill bg-brand/10 text-brand">Placements in {yearFilter} only</span>}
         </div>
         <p className="text-xs text-accent">How placement outcomes compare across self-sponsored, scholarship, NGO-sponsored, etc.</p>
-        <div className="mt-4"><PlacementRateBarChart data={sponsorshipData} barColor="#8C5B8C" /></div>
+        <div className="mt-4"><PlacementRateBarChart data={sponsorshipData} tone="brandSoft" /></div>
         <RateTable data={sponsorshipData} label="Sponsorship Type" />
       </div>
 

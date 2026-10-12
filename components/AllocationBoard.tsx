@@ -96,7 +96,7 @@ export default function AllocationBoard({
                         <td className="px-4 py-3 text-right">
                           <button
                             onClick={() => setModalTarget({ studentId: r.student_id, studentName: r.full_name, needsInclusion: r.needs_inclusion_support })}
-                            className="rounded-md bg-brand px-3 py-1.5 text-xs font-medium text-white hover:bg-accent-dark">
+                            className="rounded-md bg-brand px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-dark">
                             {r.allocation_deadline ? "Reallocate" : "Allocate"}
                           </button>
                         </td>
@@ -159,7 +159,7 @@ export default function AllocationBoard({
                         </td>
                         <td className="px-4 py-3 text-ink/70">{r.program_name ?? "—"}</td>
                         <td className="px-4 py-3"><StatusBadge status={r.placement_status ?? "awaiting_placement"} /></td>
-                        <td className="px-4 py-3">{r.needs_inclusion_support ? <span className="status-pill bg-purple-50 text-purple-700">Yes</span> : <span className="text-ink/30">—</span>}</td>
+                        <td className="px-4 py-3">{r.needs_inclusion_support ? <span className="status-pill bg-purple-50 dark:bg-purple-400/15 text-purple-700 dark:text-purple-300">Yes</span> : <span className="text-ink/30">—</span>}</td>
                         <td className="px-4 py-3">
                           <span className={clsx("text-xs font-medium", overdue ? "text-danger" : "text-ink/60")}>
                             {overdue ? "Overdue — " : ""}{deadline.toLocaleDateString()}
@@ -312,7 +312,7 @@ export default function AllocationBoard({
                         <td className="px-4 py-3 text-right">
                           <button
                             onClick={() => setModalTarget({ studentId: r.student_id, studentName: r.full_name, needsInclusion: r.needs_inclusion_support })}
-                            className="rounded-md bg-brand px-3 py-1.5 text-xs font-medium text-white hover:bg-accent-dark">
+                            className="rounded-md bg-brand px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-dark">
                             {r.allocation_deadline ? "Reallocate" : "Allocate"}
                           </button>
                         </td>
@@ -375,7 +375,7 @@ export default function AllocationBoard({
                         </td>
                         <td className="px-4 py-3 text-ink/70">{r.program_name ?? "—"}</td>
                         <td className="px-4 py-3"><StatusBadge status={r.placement_status ?? "awaiting_placement"} /></td>
-                        <td className="px-4 py-3">{r.needs_inclusion_support ? <span className="status-pill bg-purple-50 text-purple-700">Yes</span> : <span className="text-ink/30">—</span>}</td>
+                        <td className="px-4 py-3">{r.needs_inclusion_support ? <span className="status-pill bg-purple-50 dark:bg-purple-400/15 text-purple-700 dark:text-purple-300">Yes</span> : <span className="text-ink/30">—</span>}</td>
                         <td className="px-4 py-3">
                           <span className={clsx("text-xs font-medium", overdue ? "text-danger" : "text-ink/60")}>
                             {overdue ? "Overdue — " : ""}{deadline.toLocaleDateString()}

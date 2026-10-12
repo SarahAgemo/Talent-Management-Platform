@@ -1,4 +1,141 @@
-@tailwind base; @tailwind components; @tailwind utilities;
-@import url("https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap");
-body { background-color: #FAFAF8; color: #1B1F2A; }
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ------------------------------------------------------------------
+   Theme colours (Refactory brand manual)
+   Values are "R G B" so Tailwind can add opacity (bg-brand/10 etc.).
+   Light mode = :root, dark mode = .dark on <html> (set by ThemeToggle
+   and the startup script in app/layout.tsx).
+   ------------------------------------------------------------------ */
+@layer base {
+  :root {
+    color-scheme: light;
+    --tint-boost: 1;
+
+    --ink: 34 31 31;            /* #221F1F  Refactory near black */
+    --paper: 247 246 249;       /* page background */
+    --surface: 255 255 255;     /* cards, header */
+    --field: 255 255 255;       /* inputs, selects */
+    --border: 230 226 234;
+
+    --brand: 102 51 103;        /* #663367  Refactory purple */
+    --brand-light: 140 91 140;
+    --brand-dark: 78 38 79;     /* hover / pressed */
+    --brand-fg: 102 51 103;
+
+    --accent: 56 191 195;       /* #38BFC3  Refactory cerulean */
+    --accent-light: 166 227 229;
+    --accent-dark: 31 143 147;
+    --accent-fg: 23 122 126;    /* cerulean deep enough to read on white */
+
+    --success: 47 125 93;
+    --success-fg: 47 125 93;
+    --warning: 198 134 43;
+    --warning-fg: 154 98 18;
+    --danger: 179 70 44;
+    --danger-fg: 179 70 44;
+
+    --card-shadow: 0 1px 2px rgb(34 31 31 / 0.04), 0 1px 3px rgb(34 31 31 / 0.05);
+    --glow-brand: 0.07;
+    --glow-accent: 0.08;
+  }
+
+  .dark {
+    color-scheme: dark;
+    --tint-boost: 1.6;
+
+    --ink: 236 233 240;
+    --paper: 18 15 22;
+    --surface: 27 23 33;
+    --field: 21 18 26;
+    --border: 52 46 60;
+
+    --brand: 134 69 135;        /* a touch lighter so it reads on dark */
+    --brand-light: 168 106 169;
+    --brand-dark: 149 80 154;   /* hover lifts rather than darkens */
+    --brand-fg: 214 170 215;
+
+    --accent: 56 191 195;
+    --accent-light: 28 92 95;
+    --accent-dark: 95 211 214;
+    --accent-fg: 107 214 217;
+
+    --success: 62 158 118;
+    --success-fg: 110 214 165;
+    --warning: 212 154 69;
+    --warning-fg: 240 189 102;
+    --danger: 217 105 79;
+    --danger-fg: 245 140 115;
+
+    --card-shadow: 0 1px 0 rgb(255 255 255 / 0.03) inset, 0 1px 3px rgb(0 0 0 / 0.35);
+    --glow-brand: 0.22;
+    --glow-accent: 0.07;
+  }
+
+  body {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    background-image:
+      radial-gradient(1100px 520px at 0% -8%, rgb(var(--brand) / var(--glow-brand)), transparent 62%),
+      radial-gradient(900px 460px at 100% -4%, rgb(var(--accent) / var(--glow-accent)), transparent 60%);
+    background-attachment: fixed;
+    background-repeat: no-repeat;
+  }
+
+  /* Form fields follow the theme (they were browser-white before). */
+  :where(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="color"]), select, textarea) {
+    background-color: rgb(var(--field));
+  }
+
+  ::selection { background-color: rgb(var(--accent) / 0.3); }
+
+  /* Smooth, consistent hover feedback on every button and link. */
+  :where(a, button, [role="button"], summary) {
+    transition-property: color, background-color, border-color, box-shadow, opacity;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    transition-duration: 150ms;
+  }
+
+  /* Visible keyboard focus everywhere, in the brand cerulean. */
+  :where(a, button, [role="button"], summary):focus-visible {
+    outline: 2px solid rgb(var(--accent));
+    outline-offset: 2px;
+  }
+}
+
+@layer components {
+  /* Cards (bordered surfaces) get a soft lift. :where() keeps this at zero
+     specificity, so any shadow-* class on a card still wins. */
+  :where(.rounded-lg.border.bg-surface, .rounded-xl.border.bg-surface) {
+    box-shadow: var(--card-shadow);
+  }
+
+  /* Primary (purple) buttons: subtle depth. */
+  :where(button.bg-brand, a.bg-brand) {
+    box-shadow: 0 1px 2px rgb(var(--brand) / 0.25), inset 0 1px 0 rgb(255 255 255 / 0.08);
+  }
+
+  /* Sticky first-column cells in wide tables: opaque, so columns scrolling
+     underneath don't show through, while matching the tinted row colour. */
+  .sticky-cell-head {
+    background-color: rgb(var(--surface));
+    background-image: linear-gradient(rgb(var(--brand) / calc(0.1 * var(--tint-boost))), rgb(var(--brand) / calc(0.1 * var(--tint-boost))));
+  }
+  .sticky-cell-total {
+    background-color: rgb(var(--surface));
+    background-image: linear-gradient(rgb(var(--ink) / 0.03), rgb(var(--ink) / 0.03));
+  }
+
+  /* Horizontal scrolling without a visible scrollbar (top navigation on small screens). */
+  .no-scrollbar { scrollbar-width: none; }
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+}
+
 .status-pill { @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium; }
+
+/* Printing / Save as PDF: plain white page (the theme script in layout.tsx
+   also switches dark mode to light colours for the print). */
+@media print {
+  body { background-image: none; }
+}

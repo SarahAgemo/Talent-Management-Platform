@@ -135,13 +135,13 @@ export default function UploadPage() {
       </div>
 
       {accessError && (
-        <div style={{ position: "fixed", inset: 0 }} className="z-50 flex items-center justify-center bg-ink/40 p-4">
+        <div style={{ position: "fixed", inset: 0, margin: 0 }} className="z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
           <div className="w-full max-w-sm rounded-xl border border-border bg-surface p-6 text-center shadow-lg">
             <p className="text-3xl">🔒</p>
             <h2 className="mt-2 font-display text-lg font-semibold text-brand">Access restricted</h2>
             <p className="mt-2 text-sm text-ink/70">{accessError}</p>
             <button onClick={() => setAccessError(null)}
-              className="mt-4 rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-accent-dark">
+              className="mt-4 rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-dark">
               Okay
             </button>
           </div>
@@ -206,7 +206,7 @@ export default function UploadPage() {
 
           <div className="flex items-center gap-3">
             <button onClick={runImport} disabled={submitting || isComplete}
-              className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-accent-dark disabled:opacity-60">
+              className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-dark disabled:opacity-60">
               {submitting ? "Uploading…" : batchError || batchIndex > 0 ? "Resume upload" : `Import ${rows.length} students`}
             </button>
             <button onClick={handleCancel} disabled={submitting}
@@ -218,7 +218,7 @@ export default function UploadPage() {
       )}
 
       {showModal && (
-        <div style={{ position: "fixed", inset: 0 }} className="z-50 flex items-center justify-center bg-ink/40 p-4">
+        <div style={{ position: "fixed", inset: 0, margin: 0 }} className="z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
           <div className="w-full max-w-md rounded-xl border border-border bg-surface p-6 shadow-lg">
             <h2 className="font-display text-lg font-semibold text-brand">Upload complete</h2>
             <ul className="mt-3 space-y-1.5 text-sm">
@@ -237,7 +237,7 @@ export default function UploadPage() {
               <button onClick={handleCancel} className="rounded-md border border-border px-3 py-2 text-sm font-medium text-ink/70 hover:bg-ink/5">
                 Upload another file
               </button>
-              <Link href="/students" className="rounded-md bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-accent-dark">
+              <Link href="/students" className="rounded-md bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-dark">
                 Go to Student Directory
               </Link>
             </div>
@@ -420,13 +420,13 @@ export default function UploadPage() {
       </div>
 
       {accessError && (
-        <div style={{ position: "fixed", inset: 0 }} className="z-50 flex items-center justify-center bg-ink/40 p-4">
+        <div style={{ position: "fixed", inset: 0, margin: 0 }} className="z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
           <div className="w-full max-w-sm rounded-xl border border-border bg-surface p-6 text-center shadow-lg">
             <p className="text-3xl">🔒</p>
             <h2 className="mt-2 font-display text-lg font-semibold text-brand">Access restricted</h2>
             <p className="mt-2 text-sm text-ink/70">{accessError}</p>
             <button onClick={() => setAccessError(null)}
-              className="mt-4 rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-accent-dark">
+              className="mt-4 rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-dark">
               Okay
             </button>
           </div>
@@ -516,7 +516,7 @@ export default function UploadPage() {
 
           <div className="flex items-center gap-3">
             <button onClick={runImport} disabled={submitting || isComplete}
-              className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-accent-dark disabled:opacity-60">
+              className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-dark disabled:opacity-60">
               {submitting ? "Uploading…" : batchError || batchIndex > 0 ? "Resume upload" : `Import ${rows.length} students`}
             </button>
             <button onClick={handleCancel} disabled={submitting}
@@ -528,7 +528,7 @@ export default function UploadPage() {
       )}
 
       {showModal && (
-        <div style={{ position: "fixed", inset: 0 }} className="z-50 flex items-center justify-center bg-ink/40 p-4">
+        <div style={{ position: "fixed", inset: 0, margin: 0 }} className="z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
           <div className="w-full max-w-md rounded-xl border border-border bg-surface p-6 shadow-lg">
             <h2 className="font-display text-lg font-semibold text-brand">Upload complete</h2>
             <ul className="mt-3 space-y-1.5 text-sm">
@@ -557,7 +557,7 @@ export default function UploadPage() {
               <button onClick={handleCancel} className="rounded-md border border-border px-3 py-2 text-sm font-medium text-ink/70 hover:bg-ink/5">
                 Upload another file
               </button>
-              <Link href="/students" className="rounded-md bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-accent-dark">
+              <Link href="/students" className="rounded-md bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-dark">
                 Go to Student Directory
               </Link>
             </div>

@@ -104,7 +104,7 @@ export default function StudentDetailsForm({ studentId, details, canEdit }: { st
           )}
         </div>
         <div className="mt-4 flex items-center gap-2">
-          <button type="submit" disabled={saving} className="rounded-md bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-accent-dark disabled:opacity-60">
+          <button type="submit" disabled={saving} className="rounded-md bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-dark disabled:opacity-60">
             {saving ? "Saving…" : "Save"}
           </button>
           <button type="button" onClick={() => { setForm(details); setEditing(false); }} className="rounded-md border border-border px-3 py-1.5 text-sm font-medium text-ink/70 hover:bg-ink/5">
@@ -249,7 +249,7 @@ export default function StudentDetailsForm({ studentId, details, canEdit }: { st
           )}
         </div>
         <div className="mt-4 flex items-center gap-2">
-          <button type="submit" disabled={saving} className="rounded-md bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-accent-dark disabled:opacity-60">
+          <button type="submit" disabled={saving} className="rounded-md bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-dark disabled:opacity-60">
             {saving ? "Saving…" : "Save"}
           </button>
           <button type="button" onClick={() => { setForm(details); setEditing(false); }} className="rounded-md border border-border px-3 py-1.5 text-sm font-medium text-ink/70 hover:bg-ink/5">

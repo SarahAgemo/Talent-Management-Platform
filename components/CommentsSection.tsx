@@ -61,7 +61,7 @@ export default function CommentsSection({ studentId, comments, canEdit }: { stud
             <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Log a progress update…"
               className="flex-1 rounded-md border border-border px-3 py-2 text-sm" />
             <button type="submit" disabled={saving || !text.trim()}
-              className="rounded-md bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-accent-dark disabled:opacity-50">
+              className="rounded-md bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-dark disabled:opacity-50">
               Post
             </button>
           </div>
