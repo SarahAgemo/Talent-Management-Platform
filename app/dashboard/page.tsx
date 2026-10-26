@@ -220,7 +220,8 @@ export default async function DashboardPage({ searchParams }: { searchParams: { 
       </div>
 
       <DashboardClient rows={data as any}
-        scopeLabel={`${POPULATION_VIEWS.find((v) => v.value === populationView)?.label ?? ""} · ${COMPLETION_VIEWS.find((v) => v.value === completionView)?.label ?? ""}`} />
+        scopeLabel={`${POPULATION_VIEWS.find((v) => v.value === populationView)?.label ?? ""} · ${COMPLETION_VIEWS.find((v) => v.value === completionView)?.label ?? ""}`}
+        directoryQuery={[populationView === "10x" ? "tenx=in" : "", completionView !== "all" ? `completion=${completionView}` : ""].filter(Boolean).join("&")} />
     </div>
   );
 }

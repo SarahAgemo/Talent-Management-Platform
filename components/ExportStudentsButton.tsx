@@ -160,6 +160,7 @@ import { useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { exportToCSV, exportToXLSX } from "@/lib/exportUtils";
+import { applyPlacedFilter, ordersByPlacementDate, readPlacedFilter, ugandaTodayDayNumber } from "@/lib/placedFilter";
 import { STATUS_LABELS } from "./StatusBadge";
 
 const EMPLOYMENT_TYPE_LABELS: Record<string, string> = {
@@ -247,16 +248,21 @@ export default function ExportStudentsButton() {
     const completion = searchParams.get("completion");
     const tenx = searchParams.get("tenx");
     const sponsor = searchParams.get("sponsor");
+    const placedFilter = readPlacedFilter((key) => searchParams.get(key));
+    const today = ugandaTodayDayNumber();
 
     let all: any[] = [];
     let from = 0;
     const pageSize = 1000;
     while (true) {
       // student_id breaks ties so the pages never overlap or skip anyone
+      // Same order and filters as the Student Directory page.
       let query = supabase.from("student_overview").select(EXPORT_COLUMNS)
-        .order("graduation_date", { ascending: false, nullsFirst: false })
+        .order(ordersByPlacementDate(placedFilter) ? "placement_date" : "graduation_date",
+          ordersByPlacementDate(placedFilter) ? { ascending: true } : { ascending: false, nullsFirst: false })
         .order("student_id", { ascending: true });
-      if (status) query = query.eq("placement_status", status);
+      if (status && placedFilter.kind === "none") query = query.eq("placement_status", status);
+      query = applyPlacedFilter(query, placedFilter, today);
       if (program) query = query.eq("program_name", program);
       if (q) query = query.ilike("full_name", `%${q}%`);
       if (completion === "graduated" || completion === "not_graduated") query = query.eq("completion_status", completion);
@@ -285,8 +291,11 @@ export default function ExportStudentsButton() {
     setLoading(true);
     try {
       const rows = await fetchAllFiltered();
-      if (format === "csv") exportToCSV(rows, "student_directory");
-      else await exportToXLSX(rows, "student_directory");
+      // e.g. students_placed_2026-10 when a "Placed in" period is chosen
+      const placedFilter = readPlacedFilter((key) => searchParams.get(key));
+      const filename = placedFilter.kind === "none" ? "student_directory" : `students_placed_${placedFilter.slug}`;
+      if (format === "csv") exportToCSV(rows, filename);
+      else await exportToXLSX(rows, filename);
     } catch (err: any) {
       setExportError("Export failed — if this persists, check that the latest database migration has been run.");
     } finally {

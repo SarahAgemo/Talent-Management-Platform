@@ -80,6 +80,8 @@ import StudentFilters from "@/components/StudentFilters";
 import StudentTable from "@/components/StudentTable";
 import Pagination from "@/components/Pagination";
 import ExportStudentsButton from "@/components/ExportStudentsButton";
+import { applyPlacedFilter, ordersByPlacementDate, readPlacedFilter, ugandaTodayDayNumber } from "@/lib/placedFilter";
+import { toDayNumber, yearOf } from "@/lib/reportPeriods";
 
 const DEFAULT_PAGE_SIZE = 10;
 const ALLOWED_PAGE_SIZES = [10, 30, 50];
@@ -87,7 +89,8 @@ const ALLOWED_PAGE_SIZES = [10, 30, 50];
 export default async function StudentsPage({
   searchParams
 }: {
-  searchParams: { status?: string; program?: string; q?: string; inclusion?: string; page?: string; staff?: string; pageSize?: string; completion?: string; tenx?: string; sponsor?: string };
+  searchParams: { status?: string; program?: string; q?: string; inclusion?: string; page?: string; staff?: string; pageSize?: string; completion?: string; tenx?: string; sponsor?: string;
+    placedYear?: string; placedMonth?: string; placedWeek?: string; placedDay?: string; placedFrom?: string; placedTo?: string };
 }) {
   const supabase = createClient();
   const { data: programs } = await supabase.from("programs").select("id, name").order("name");
@@ -97,6 +100,16 @@ export default async function StudentsPage({
   const sponsorships: string[] = Array.from(new Map<string, string>(
     (sponsorRows ?? []).map((r: any): [string, string] => [String(r.sponsorship_type).toLowerCase(), String(r.sponsorship_type)])
   ).values());
+
+  // "Placed in" filter (year / month / week / day), counted the same way as the Dashboard.
+  const today = ugandaTodayDayNumber();
+  const placedFilter = readPlacedFilter((key) => (searchParams as Record<string, string | undefined>)[key]);
+  const { data: firstPlaced } = await supabase.from("student_overview").select("placement_date")
+    .eq("placement_status", "placed").not("placement_date", "is", null)
+    .order("placement_date", { ascending: true }).limit(1);
+  const firstDay = toDayNumber(firstPlaced?.[0]?.placement_date ?? null);
+  const firstYear = Math.min(firstDay !== null ? yearOf(firstDay) : yearOf(today), yearOf(today));
+  const placedYears = Array.from({ length: yearOf(today) - firstYear + 1 }, (_, i) => yearOf(today) - i);
 
   const requestedSize = parseInt(searchParams.pageSize ?? "", 10);
   const pageSize = ALLOWED_PAGE_SIZES.includes(requestedSize) ? requestedSize : DEFAULT_PAGE_SIZE;
@@ -111,12 +124,16 @@ export default async function StudentsPage({
       "student_id, full_name, program_name, cohort_name, graduation_date, placement_status, company_name, placement_date, location, days_since_graduation, disability_status, refugee_status, assigned_staff_name, completion_status",
       { count: "exact" }
     )
-    // student_id breaks ties so pages never overlap or skip anyone
-    .order("graduation_date", { ascending: false, nullsFirst: false })
+    // student_id breaks ties so pages never overlap or skip anyone. A "Placed in"
+    // period or date range lists people in the order they were placed.
+    .order(ordersByPlacementDate(placedFilter) ? "placement_date" : "graduation_date",
+      ordersByPlacementDate(placedFilter) ? { ascending: true } : { ascending: false, nullsFirst: false })
     .order("student_id", { ascending: true })
     .range(from, to);
 
-  if (searchParams.status) query = query.eq("placement_status", searchParams.status);
+  // A "Placed in" period or date range already means Placed, so the status filter steps aside.
+  if (searchParams.status && placedFilter.kind === "none") query = query.eq("placement_status", searchParams.status);
+  query = applyPlacedFilter(query, placedFilter, today);
   if (searchParams.program) query = query.eq("program_name", searchParams.program);
   if (searchParams.q) query = query.ilike("full_name", `%${searchParams.q}%`);
   if (searchParams.completion === "graduated" || searchParams.completion === "not_graduated") {
@@ -138,11 +155,14 @@ export default async function StudentsPage({
       <div className="flex items-center justify-between">
         <div>
           <h1 className="font-display text-2xl font-semibold text-brand">Student Directory</h1>
-          <p className="text-sm text-accent">{count ?? 0} student{count === 1 ? "" : "s"} matching current filters</p>
+          <p className="text-sm text-accent">
+            {count ?? 0} student{count === 1 ? "" : "s"} matching current filters
+            {placedFilter.kind !== "none" && <> &middot; placed {placedFilter.label}</>}
+          </p>
         </div>
         <ExportStudentsButton />
       </div>
-      <StudentFilters programs={programs ?? []} staff={staffList ?? []} sponsorships={sponsorships} />
+      <StudentFilters programs={programs ?? []} staff={staffList ?? []} sponsorships={sponsorships} placedYears={placedYears} />
       {error && (
         <p className="text-sm text-danger">
           Couldn&apos;t load students: {error.message}. Check that all migrations have been run.

@@ -1,8 +1,10 @@
 "use client";
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { PlacedVsUnplacedChart, PlacementRateBarChart, TopJobTitlesChart } from "./DashboardCharts";
 import ExportButton from "./ExportButton";
 import { exportWorkbook } from "@/lib/exportUtils";
+import { NO_DATE, isoFromDay, placedQuery } from "@/lib/placedFilter";
 import {
   MONTH_NAMES, monthBucket, resolvePeriod, todayDayNumber, toDayNumber, yearOf,
   type Bucket, type PeriodChoice
@@ -81,9 +83,13 @@ type PeriodRow = {
   unplacedCount: number | null;
   placedPct: number | null;
   drill: PeriodChoice | null;   // clicking the row opens this period
+  namesHref: string | null;     // Student Directory listing the people placed in this row
 };
 
-export default function DashboardClient({ rows, scopeLabel = "" }: { rows: Row[]; scopeLabel?: string }) {
+// directoryQuery: the Dashboard's 10X / graduate view as Student Directory
+// filters (e.g. "tenx=in&completion=graduated"), so "see names" links list
+// exactly the people counted here.
+export default function DashboardClient({ rows, scopeLabel = "", directoryQuery = "" }: { rows: Row[]; scopeLabel?: string; directoryQuery?: string }) {
   const [choice, setChoice] = useState<PeriodChoice>(ALL_TIME);
   const [downloading, setDownloading] = useState(false);
   const today = useMemo(() => todayDayNumber(), []);
@@ -138,29 +144,50 @@ export default function DashboardClient({ rows, scopeLabel = "" }: { rows: Row[]
     }
   };
 
+  // Student Directory link for people placed in a period.
+  const directoryHref = (placed: string) => `/students?${[directoryQuery, placed].filter(Boolean).join("&")}`;
+  const namesFor = (index: number, b: Bucket) => {
+    switch (resolved.level) {
+      case "all": return directoryHref(placedQuery({ placedYear: b.label }));
+      case "year": return directoryHref(placedQuery({ placedYear: choice.year, placedMonth: String(index + 1) }));
+      case "month": return directoryHref(placedQuery({ placedYear: choice.year, placedMonth: choice.month, placedWeek: String(index + 1) }));
+      default: return directoryHref(placedQuery({ placedYear: choice.year, placedMonth: choice.month, placedWeek: choice.week, placedDay: isoFromDay(b.start) }));
+    }
+  };
+  const periodNamesHref = (() => {
+    switch (resolved.level) {
+      case "all": return directoryHref("status=placed");
+      case "year": return directoryHref(placedQuery({ placedYear: choice.year }));
+      case "month": return directoryHref(placedQuery({ placedYear: choice.year, placedMonth: choice.month }));
+      case "week": return directoryHref(placedQuery({ placedYear: choice.year, placedMonth: choice.month, placedWeek: choice.week }));
+      default: return directoryHref(placedQuery({ placedYear: choice.year, placedMonth: choice.month, placedWeek: choice.week, placedDay: period ? isoFromDay(period.start) : "" }));
+    }
+  })();
+
   // Placed vs Unplaced: one row per month / week / day of the chosen period.
   // "Placed (cumulative)" counts every dated placement up to the end of that
   // row, including earlier years; "Unplaced" is the rest of the eligible group.
   const periodRows: PeriodRow[] = useMemo(() => {
     const out: PeriodRow[] = resolved.children.map((b, i) => {
       if (b.start > today) {
-        return { bucket: b.label, periodCount: null, placedCount: null, unplacedCount: null, placedPct: null, drill: null };
+        return { bucket: b.label, periodCount: null, placedCount: null, unplacedCount: null, placedPct: null, drill: null, namesHref: null };
       }
       const cumulative = countBefore(placedDays, b.end);
       return {
         bucket: b.label, periodCount: cumulative - countBefore(placedDays, b.start), placedCount: cumulative,
-        unplacedCount: eligibleTotal - cumulative, placedPct: pct(cumulative, eligibleTotal), drill: drillFor(i, b)
+        unplacedCount: eligibleTotal - cumulative, placedPct: pct(cumulative, eligibleTotal), drill: drillFor(i, b), namesHref: namesFor(i, b)
       };
     });
     if (resolved.level === "all" && undatedCount > 0) {
       const placedCount = placedDays.length + undatedCount;
       out.push({
         bucket: "Placement Date Not Recorded", periodCount: undatedCount, placedCount,
-        unplacedCount: eligibleTotal - placedCount, placedPct: pct(placedCount, eligibleTotal), drill: null
+        unplacedCount: eligibleTotal - placedCount, placedPct: pct(placedCount, eligibleTotal), drill: null,
+        namesHref: directoryHref(placedQuery({ placedYear: NO_DATE }))
       });
     }
     return out;
-  }, [resolved, placedDays, undatedCount, eligibleTotal, today, choice]);
+  }, [resolved, placedDays, undatedCount, eligibleTotal, today, choice, directoryQuery]);
 
   // Headline figures for the whole chosen period.
   const summary = useMemo(() => {
@@ -380,7 +407,8 @@ export default function DashboardClient({ rows, scopeLabel = "" }: { rows: Row[]
         </nav>
 
         <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <MiniStat label="Placements in this period" value={summary.newPlacements} className="text-brand" />
+          <MiniStat label="Placements in this period" value={summary.newPlacements} className="text-brand"
+            href={summary.newPlacements ? periodNamesHref : undefined} />
           <MiniStat label="Placed by end of period" value={summary.placedByEnd} className="text-success" />
           <MiniStat label="Unplaced at end of period" value={summary.unplacedAtEnd} className="text-danger" />
           <MiniStat label="Placed % at end of period" value={summary.placedPct} suffix="%" className="text-ink" />
@@ -394,7 +422,7 @@ export default function DashboardClient({ rows, scopeLabel = "" }: { rows: Row[]
             <h2 className="font-display text-lg font-semibold text-brand">Placed vs Unplaced (Cumulative)</h2>
             <p className="text-xs text-accent">
               {resolved.level === "day" ? `${resolved.label}.` : `${resolved.label}, by ${noun.toLowerCase()}.`} Placed (cumulative) counts every placement up to the end of each {noun.toLowerCase()}, including earlier years.
-              {resolved.level !== "day" && " Click a row to open it."}
+              {resolved.level !== "day" && " Click a row to open it."} Click a number of new placements to see those students.
             </p>
           </div>
           <ExportButton data={exports.placedVsUnplaced} filename={`placed_vs_unplaced_${slug}`} />
@@ -424,7 +452,11 @@ export default function DashboardClient({ rows, scopeLabel = "" }: { rows: Row[]
                       <span className={b.periodCount === null ? "text-ink/40" : undefined}>{b.bucket}</span>
                     )}
                   </td>
-                  <td className="px-4 py-2 text-ink/70">{b.periodCount ?? "—"}</td>
+                  <td className="px-4 py-2 text-ink/70">
+                    {b.namesHref && b.periodCount ? (
+                      <Link href={b.namesHref} title="See these students in the Student Directory" className="font-medium text-accent hover:underline">{b.periodCount}</Link>
+                    ) : (b.periodCount ?? "—")}
+                  </td>
                   <td className="px-4 py-2 text-success">{b.placedCount ?? "—"}</td>
                   <td className="px-4 py-2 text-danger">{b.unplacedCount ?? "—"}</td>
                   <td className="px-4 py-2 text-ink/70">{b.placedPct === null ? "—" : `${b.placedPct}%`}</td>
@@ -587,11 +619,12 @@ function PeriodSelect({ label, value, onChange, disabled, children }: {
   );
 }
 
-function MiniStat({ label, value, suffix = "", className }: { label: string; value: number | null; suffix?: string; className?: string }) {
+function MiniStat({ label, value, suffix = "", className, href }: { label: string; value: number | null; suffix?: string; className?: string; href?: string }) {
   return (
     <div className="rounded-lg border border-border px-4 py-3">
       <p className="text-xs text-ink/50">{label}</p>
       <p className={`mt-1 font-display text-2xl font-semibold ${className ?? ""}`}>{value === null ? "—" : `${value}${suffix}`}</p>
+      {href && <Link href={href} className="mt-1 inline-block text-xs font-medium text-accent hover:underline">See names &rarr;</Link>}
     </div>
   );
 }
