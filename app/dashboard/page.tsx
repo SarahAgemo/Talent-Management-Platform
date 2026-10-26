@@ -219,7 +219,8 @@ export default async function DashboardPage({ searchParams }: { searchParams: { 
         <Link href="/my-caseload" className="mt-3 inline-block text-sm text-accent hover:underline">View your own caseload &rarr;</Link>
       </div>
 
-      <DashboardClient rows={data as any} />
+      <DashboardClient rows={data as any}
+        scopeLabel={`${POPULATION_VIEWS.find((v) => v.value === populationView)?.label ?? ""} · ${COMPLETION_VIEWS.find((v) => v.value === completionView)?.label ?? ""}`} />
     </div>
   );
 }

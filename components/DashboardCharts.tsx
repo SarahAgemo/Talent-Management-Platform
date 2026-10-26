@@ -96,13 +96,21 @@ function PlacedVsUnplacedTooltip({ active, payload, label, palette }: any) {
   return (
     <div style={tooltipBox(p)}>
       <p style={{ fontWeight: 600, marginBottom: 4, color: p.tooltipText }}>{label}</p>
-      <p style={{ color: p.placed, margin: 0 }}>Placed: {d.placedCount} ({d.placedPct}%)</p>
-      <p style={{ color: p.unplaced, margin: 0 }}>Unplaced: {d.unplacedCount} ({100 - d.placedPct}%)</p>
+      {d.placedCount === null || d.placedCount === undefined ? (
+        <p style={{ color: p.axis, margin: 0 }}>Not reached yet</p>
+      ) : (
+        <>
+          {d.periodCount !== null && d.periodCount !== undefined && <p style={{ color: p.tooltipText, margin: 0 }}>New placements: {d.periodCount}</p>}
+          <p style={{ color: p.placed, margin: 0 }}>Placed: {d.placedCount} ({d.placedPct}%)</p>
+          <p style={{ color: p.unplaced, margin: 0 }}>Unplaced: {d.unplacedCount} ({100 - d.placedPct}%)</p>
+        </>
+      )}
     </div>
   );
 }
 
-export function PlacedVsUnplacedChart({ data }: { data: { bucket: string; placedPct: number; placedCount: number; unplacedCount: number }[] }) {
+// Values are null for periods that haven't started yet (drawn as gaps).
+export function PlacedVsUnplacedChart({ data }: { data: { bucket: string; placedPct: number | null; placedCount: number | null; unplacedCount: number | null }[] }) {
   const p = useChartPalette();
   return (
     <ResponsiveContainer width="100%" height={340}>
