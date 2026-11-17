@@ -160,7 +160,7 @@ import { useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { exportToCSV, exportToXLSX } from "@/lib/exportUtils";
-import { applyPlacedFilter, ordersByPlacementDate, readPlacedFilter, ugandaTodayDayNumber } from "@/lib/placedFilter";
+import { applyPlacedFilter, ordersByPlacementDate, readPlacedFilter, shortDate, ugandaTodayDayNumber } from "@/lib/placedFilter";
 import { STATUS_LABELS } from "./StatusBadge";
 
 const EMPLOYMENT_TYPE_LABELS: Record<string, string> = {
@@ -187,9 +187,69 @@ const EXPORT_COLUMNS = [
   "assigned_staff_name", "placement_notes", "completion_status", "student_id", "ten_x_id"
 ].join(", ");
 
+// Every progress comment goes into one "Comments" cell, newest first:
+//   [17 Nov 2026, Brian] Unreachable / offline
+//   [10 Nov 2026, Joan] Called twice, no answer
+// The brackets keep the entries apart even where a spreadsheet shows the
+// cell on one line. Dates are Uganda dates.
+const COMMENT_CHUNK = 100;        // students per request
+const PARALLEL_REQUESTS = 4;
+const MAX_CELL_LENGTH = 32000;    // Excel's limit for one cell is 32,767 characters
+
+// "17 Nov 2026": the date in Uganda when the comment was posted
+function commentDate(value: string) {
+  return shortDate(ugandaTodayDayNumber(new Date(value)));
+}
+
+async function fetchCommentsByStudent(supabase: ReturnType<typeof createClient>, studentIds: string[]) {
+  const lines = new Map<string, string[]>();
+  const chunks: string[][] = [];
+  for (let i = 0; i < studentIds.length; i += COMMENT_CHUNK) chunks.push(studentIds.slice(i, i + COMMENT_CHUNK));
+
+  async function loadChunk(ids: string[]) {
+    const rows: any[] = [];
+    for (let from = 0; ; from += 1000) {
+      const { data, error } = await supabase
+        .from("student_comments")
+        .select("id, student_id, comment, created_at, staff_users(name)")
+        .in("student_id", ids)
+        .order("created_at", { ascending: false })
+        .order("id", { ascending: true })
+        .range(from, from + 999);
+      if (error) throw error;
+      if (!data || data.length === 0) break;
+      rows.push(...data);
+      if (data.length < 1000) break;
+    }
+    return rows;
+  }
+
+  for (let i = 0; i < chunks.length; i += PARALLEL_REQUESTS) {
+    const results = await Promise.all(chunks.slice(i, i + PARALLEL_REQUESTS).map(loadChunk));
+    for (const rows of results) {
+      for (const c of rows) {
+        const staff = Array.isArray(c.staff_users) ? c.staff_users[0]?.name : c.staff_users?.name;
+        const line = `[${commentDate(c.created_at)}, ${staff ?? "Unknown"}] ${String(c.comment ?? "").trim()}`;
+        const list = lines.get(c.student_id);
+        if (list) list.push(line); else lines.set(c.student_id, [line]);
+      }
+    }
+  }
+
+  const byStudent = new Map<string, string>();
+  lines.forEach((list, studentId) => {
+    let text = list.join("\n");
+    if (text.length > MAX_CELL_LENGTH) {
+      text = text.slice(0, MAX_CELL_LENGTH) + "\n[... older comments are on the student's profile]";
+    }
+    byStudent.set(studentId, text);
+  });
+  return byStudent;
+}
+
 // Readable headers and human labels, so the exported file is usable for
 // reporting as-is — no decoding "awaiting_placement" or "self_employed".
-function toExportRow(r: any) {
+function toExportRow(r: any, comments: string) {
   return {
     "10X ID": r.ten_x_id,
     "Full Name": r.full_name,
@@ -228,7 +288,8 @@ function toExportRow(r: any) {
     "Technical Proficiency": r.technical_proficiency,
     "Career Track of Interest": r.career_track_interest,
     "Assigned To": r.assigned_staff_name,
-    "Placement Notes": r.placement_notes
+    "Placement Notes": r.placement_notes,
+    "Comments": comments
   };
 }
 
@@ -281,7 +342,8 @@ export default function ExportStudentsButton() {
       if (data.length < pageSize) break;
       from += pageSize;
     }
-    return all.map(toExportRow);
+    const comments = await fetchCommentsByStudent(supabase, all.map((r) => r.student_id));
+    return all.map((r) => toExportRow(r, comments.get(r.student_id) ?? ""));
   }
 
   async function handleExport(format: "csv" | "xlsx" | "print") {

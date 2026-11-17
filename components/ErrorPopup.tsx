@@ -24,6 +24,9 @@ export function friendlyErrorMessage(raw: string | undefined | null): string {
   if (v.includes("jwt") || v.includes("session") || v.includes("not authenticated")) {
     return "Your session may have expired — try signing out and back in.";
   }
+  // Rules enforced by the database, worded for staff - shown as they are.
+  if (v.includes("only an admin can")) return raw as string;
+  if (v.includes("choose the students, a staff member and a deadline")) return raw as string;
   if (!raw) return "Something went wrong. Please try again.";
   return "Something went wrong on that action. Please try again, or check with an Admin if it keeps happening.";
 }

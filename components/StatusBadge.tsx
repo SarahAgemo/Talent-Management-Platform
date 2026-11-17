@@ -6,7 +6,8 @@ const STATUS_STYLES: Record<string, string> = {
   offer_extended: "bg-brand/10 text-brand",
   placed: "bg-success/10 text-success",
   declined_withdrawn: "bg-danger/10 text-danger",
-  further_skilling: "bg-purple-50 dark:bg-purple-400/15 text-purple-700 dark:text-purple-300"
+  further_skilling: "bg-purple-50 dark:bg-purple-400/15 text-purple-700 dark:text-purple-300",
+  unreachable: "bg-slate-100 dark:bg-slate-400/15 text-slate-700 dark:text-slate-300"
 };
 
 export const STATUS_LABELS: Record<string, string> = {
@@ -17,8 +18,12 @@ export const STATUS_LABELS: Record<string, string> = {
   offer_extended: "Offer Extended",
   placed: "Placed",
   declined_withdrawn: "Disinterested in Work",
-  further_skilling: "Further Skilling"
+  further_skilling: "Further Skilling",
+  unreachable: "Unreachable / Offline"
 };
+
+// Statuses left out of the placed / unplaced totals and placement rates.
+export const SET_ASIDE_STATUSES = ["further_skilling", "declined_withdrawn", "unreachable"];
 
 export default function StatusBadge({ status }: { status: string }) {
   return (

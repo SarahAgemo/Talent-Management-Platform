@@ -9,10 +9,12 @@ const LABELS: Record<string, string> = { red: "Red", amber: "Amber", green: "Gre
 // to be) job-hunting. Once someone is Placed or Disinterested, the
 // question "are your CV/LinkedIn/portfolio ready" no longer has a
 // meaningful answer to chase — showing them as urgent red is a false
-// alarm, not real signal. Further Skilling stays active, since they'll
-// re-enter the job market later and genuinely will need this tracked.
+// alarm, not real signal. The same goes for Unreachable / Offline. Further
+// Skilling stays active, since they'll re-enter the job market later and
+// genuinely will need this tracked.
+const NOT_TRACKED = ["placed", "declined_withdrawn", "unreachable"];
 export function RagBadge({ status, placementStatus }: { status: string; placementStatus?: string | null }) {
-  if (placementStatus === "placed" || placementStatus === "declined_withdrawn") {
+  if (placementStatus && NOT_TRACKED.includes(placementStatus)) {
     return <span className="status-pill bg-ink/5 text-ink/40">Not tracked</span>;
   }
   return <span className={`status-pill ${STYLES[status] ?? "bg-ink/5 text-ink/60"}`}>{LABELS[status] ?? status}</span>;
@@ -25,7 +27,7 @@ export function RiskBadge({ risk }: { risk: string | null }) {
 }
 
 export function ReadinessBar({ green, amber, red, placementStatus }: { green: number; amber: number; red: number; placementStatus?: string | null }) {
-  if (placementStatus === "placed" || placementStatus === "declined_withdrawn") {
+  if (placementStatus && NOT_TRACKED.includes(placementStatus)) {
     return <div className="h-2 w-full rounded-full bg-ink/5" title="Readiness no longer actively tracked" />;
   }
   const total = green + amber + red || 1;

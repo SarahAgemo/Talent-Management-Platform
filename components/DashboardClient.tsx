@@ -3,6 +3,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { PlacedVsUnplacedChart, PlacementRateBarChart, TopJobTitlesChart } from "./DashboardCharts";
 import ExportButton from "./ExportButton";
+import { SET_ASIDE_STATUSES } from "./StatusBadge";
 import { exportWorkbook } from "@/lib/exportUtils";
 import { NO_DATE, isoFromDay, placedQuery } from "@/lib/placedFilter";
 import {
@@ -113,7 +114,8 @@ export default function DashboardClient({ rows, scopeLabel = "", directoryQuery 
   const eligible = useMemo(() => {
     const now = Date.now();
     return items.filter(({ row: r }) => {
-      if (r.placement_status === "further_skilling" || r.placement_status === "declined_withdrawn") return false;
+      // Further Skilling, Disinterested and Unreachable / Offline are left out of placed / unplaced.
+      if (r.placement_status && SET_ASIDE_STATUSES.includes(r.placement_status)) return false;
       if (r.placement_status === "placed") return true;
       const gradTime = r.graduation_date ? new Date(r.graduation_date).getTime() : NaN;
       return r.graduation_date && !isNaN(gradTime) && gradTime <= now;

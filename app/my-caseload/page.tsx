@@ -15,6 +15,14 @@ export default async function MyCaseloadPage() {
     ? await supabase.from("student_pipeline_card").select("*").eq("assigned_to", user.id)
     : { data: [] };
 
+  // Students newly allocated to me and not yet marked as seen.
+  const { data: unseen } = user
+    ? await supabase.from("allocations").select("id, student_id, assigned_at")
+        .eq("assigned_to", user.id).eq("allocation_status", "active").is("seen_at", null)
+    : { data: [] };
+  const newAllocations: Record<string, { id: string; assignedAt: string }> = {};
+  for (const a of (unseen ?? []) as any[]) newAllocations[a.student_id] = { id: a.id, assignedAt: a.assigned_at };
+
   return (
     <div className="space-y-6">
       <div>
@@ -29,7 +37,7 @@ export default async function MyCaseloadPage() {
         <KpiCard label="Avg Weeks to Place" value={kpi?.avg_weeks_to_place ?? "—"} />
       </div>
 
-      <PipelineView cards={(cards ?? []) as any} />
+      <PipelineView cards={(cards ?? []) as any} newAllocations={newAllocations} />
     </div>
   );
 }

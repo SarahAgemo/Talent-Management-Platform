@@ -4,6 +4,8 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import ErrorPopup, { friendlyErrorMessage } from "./ErrorPopup";
 import { STATUS_LABELS } from "./StatusBadge";
+import { isoFromDay, shortDate, ugandaTodayDayNumber } from "@/lib/placedFilter";
+import { toDayNumber } from "@/lib/reportPeriods";
 
 type Placement = {
   id: string; status: string; company_name: string | null; position_title: string | null;
@@ -55,9 +57,14 @@ function strToInt(v: string): number | null {
   const n = parseInt(v, 10);
   return isNaN(n) || n < 0 ? null : n;
 }
+// Today in Uganda - the same date the database records.
 function todayISO() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  return isoFromDay(ugandaTodayDayNumber());
+}
+// "2026-11-17" -> "17 Nov 2026"
+function readableDate(iso: string | null) {
+  const day = toDayNumber(iso);
+  return day == null ? (iso ?? "") : shortDate(day);
 }
 
 function initialForm(p: Placement) {
@@ -79,7 +86,7 @@ function initialForm(p: Placement) {
   };
 }
 
-export default function PlacementForm({ placement, canEdit }: { placement: Placement; canEdit: boolean }) {
+export default function PlacementForm({ placement, canEdit, isAdmin = false }: { placement: Placement; canEdit: boolean; isAdmin?: boolean }) {
   const [form, setForm] = useState(initialForm(placement));
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -97,10 +104,20 @@ export default function PlacementForm({ placement, canEdit }: { placement: Place
       ? form.salary_compensation
       : null;
 
-  // When the status moves to Placed and no date is on file, the save
-  // stamps today's date so the placement counts in this month's totals.
-  // An existing date is never overwritten.
-  const willAutoStampDate = form.status === "placed" && placement.status !== "placed" && !form.placement_date;
+  // Placement date rules (the database enforces the same):
+  //   - changing the status to Placed fills in today's date
+  //   - changing it from Placed to anything else clears the date
+  //   - once Placed, only an Admin can change the date
+  const newlyPlaced = form.status === "placed" && placement.status !== "placed";
+  const dateEditable = isAdmin && form.status === "placed";
+
+  function handleStatusChange(value: string) {
+    let placement_date = form.placement_date;
+    if (value !== "placed") placement_date = null;
+    else if (placement.status === "placed") placement_date = placement.placement_date;  // back to how it was saved
+    else placement_date = todayISO();
+    setForm({ ...form, status: value, placement_date });
+  }
 
   function handleEmploymentTypeChange(value: string) {
     setForm({
@@ -137,7 +154,11 @@ export default function PlacementForm({ placement, canEdit }: { placement: Place
       selfEmploymentPayload[key] = isSelfEmployed ? strToInt(form[key]) : null;
     }
 
-    const placementDateToSave = form.placement_date || (willAutoStampDate ? todayISO() : null);
+    // A status that isn't Placed carries no placement date - but an older record
+    // whose status isn't being changed keeps whatever it already has.
+    const placementDateToSave = form.status === "placed"
+      ? (form.placement_date || null)
+      : form.status === placement.status ? placement.placement_date : null;
 
     const { data, error } = await supabase.from("placements").update({
       status: form.status, company_name: form.company_name, position_title: form.position_title,
@@ -163,7 +184,9 @@ export default function PlacementForm({ placement, canEdit }: { placement: Place
       setForm(initialForm(placement));
       return;
     }
-    setMessage(placementDateToSave && !form.placement_date ? `Saved — placement date set to ${placementDateToSave}.` : "Saved.");
+    // the date the database actually recorded
+    const recorded = (data[0] as any)?.placement_date ?? placementDateToSave ?? todayISO();
+    setMessage(newlyPlaced ? `Saved — placement date recorded as ${readableDate(recorded)}.` : "Saved.");
     router.refresh();
   }
 
@@ -206,13 +229,13 @@ export default function PlacementForm({ placement, canEdit }: { placement: Place
         <h2 className="font-display text-lg font-semibold text-brand">Placement & Employment</h2>
         <div>
           <label className="block text-sm font-medium text-ink/80">Status</label>
-          <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}
+          <select value={form.status} onChange={(e) => handleStatusChange(e.target.value)}
             className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm">
             {Object.entries(STATUS_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
           </select>
-          {willAutoStampDate && (
+          {newlyPlaced && (
             <p className="mt-1 text-xs text-accent">
-              No placement date on file — saving will record today ({todayISO()}) so this counts in this month&apos;s figures. Set a date below to use a different one.
+              Placement date filled in as today ({readableDate(form.placement_date ?? todayISO())}). Click Save to record it.
             </p>
           )}
         </div>
@@ -297,10 +320,25 @@ export default function PlacementForm({ placement, canEdit }: { placement: Place
           )}
 
           <div>
-            <label className="block text-sm font-medium text-ink/80">Placement date</label>
-            <input type="date" value={form.placement_date ?? ""} onChange={(e) => setForm({ ...form, placement_date: e.target.value })}
-              className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm" />
-            <p className="mt-1 text-xs text-ink/40">Clear this field to remove the date entirely.</p>
+            <label className="flex items-center gap-1.5 text-sm font-medium text-ink/80">
+              Placement date
+              {!dateEditable && (
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-label="Locked" className="text-ink/40">
+                  <rect x="4" y="11" width="16" height="10" rx="2" />
+                  <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+                </svg>
+              )}
+            </label>
+            <input type="date" value={form.status === "placed" ? (form.placement_date ?? "") : ""} max={todayISO()} disabled={!dateEditable} readOnly={!dateEditable}
+              onChange={(e) => setForm({ ...form, placement_date: e.target.value || null })}
+              className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm disabled:cursor-not-allowed disabled:bg-ink/5 disabled:text-ink/70" />
+            <p className="mt-1 text-xs text-ink/40">
+              {form.status !== "placed"
+                ? "Filled in automatically when the status is changed to Placed."
+                : isAdmin
+                  ? "Filled in automatically. As an Admin you can correct it."
+                  : "Filled in automatically when the status changed to Placed. Only an Admin can change it."}
+            </p>
           </div>
           <div>
             <label className="block text-sm font-medium text-ink/80">Salary / compensation</label>

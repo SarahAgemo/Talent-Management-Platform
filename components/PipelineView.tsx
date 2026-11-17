@@ -6,6 +6,7 @@ import StatusBadge from "./StatusBadge";
 import { RagBadge, RiskBadge, ReadinessBar } from "./RagBadge";
 import ClientPaginator from "./ClientPaginator";
 import ExportButton from "./ExportButton";
+import { MarkSeenButton, NewAllocationBadge } from "./NewAllocationNotice";
 
 type Card = {
   student_id: string; full_name: string; track: string | null; program_name: string | null;
@@ -16,10 +17,13 @@ type Card = {
 
 const STAGE_LABELS: Record<string, string> = {
   awaiting_placement: "Ready", in_preparation: "Ready", applying: "Applying",
-  interviewing: "Interviewing", offer_extended: "Offer", placed: "Placed", declined_withdrawn: "Disinterested"
+  interviewing: "Interviewing", offer_extended: "Offer", placed: "Placed", declined_withdrawn: "Disinterested",
+  further_skilling: "Further Skilling", unreachable: "Unreachable / Offline"
 };
 
-export default function PipelineView({ cards }: { cards: Card[] }) {
+type NewAllocations = Record<string, { id: string; assignedAt: string }>;
+
+export default function PipelineView({ cards, newAllocations = {} }: { cards: Card[]; newAllocations?: NewAllocations }) {
   const [view, setView] = useState<"table" | "kanban">("table");
   const [stageFilter, setStageFilter] = useState("");
   const [riskFilter, setRiskFilter] = useState("");
@@ -27,6 +31,8 @@ export default function PipelineView({ cards }: { cards: Card[] }) {
   const [programFilter, setProgramFilter] = useState("");
   const [searchInput, setSearchInput] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
+  const [newOnly, setNewOnly] = useState(false);
+  const newCount = cards.filter((c) => newAllocations[c.student_id]).length;
 
   const programs = Array.from(new Set(cards.map((c) => c.program_name).filter(Boolean))) as string[];
 
@@ -38,11 +44,24 @@ export default function PipelineView({ cards }: { cards: Card[] }) {
     if (readinessFilter && c.overall_readiness !== readinessFilter) return false;
     if (programFilter && c.program_name !== programFilter) return false;
     if (searchTerm && !c.full_name.toLowerCase().includes(searchTerm)) return false;
+    if (newOnly && !newAllocations[c.student_id]) return false;
     return true;
-  }), [cards, stageFilter, riskFilter, readinessFilter, programFilter, searchTerm]);
+  }), [cards, stageFilter, riskFilter, readinessFilter, programFilter, searchTerm, newOnly, newAllocations]);
 
   return (
     <div className="space-y-4">
+      {newCount > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-accent/40 bg-accent/10 px-4 py-3 text-sm">
+          <p>
+            <span className="font-semibold text-accent">{newCount} new allocation{newCount === 1 ? "" : "s"}.</span>{" "}
+            <span className="text-ink/70">These students have been in the system before - review each one, then mark it as seen.</span>
+          </p>
+          <button type="button" onClick={() => setNewOnly(!newOnly)} aria-pressed={newOnly}
+            className={clsx("rounded-md px-3 py-1.5 text-xs font-medium", newOnly ? "bg-brand text-white" : "border border-accent/40 text-accent hover:bg-accent/10")}>
+            {newOnly ? "Show everyone" : "Show new allocations only"}
+          </button>
+        </div>
+      )}
       <div className="flex flex-wrap items-center gap-2">
         <select value={stageFilter} onChange={(e) => setStageFilter(e.target.value)} className="rounded-md border border-border px-3 py-1.5 text-sm">
           <option value="">All stages</option>
@@ -95,7 +114,15 @@ export default function PipelineView({ cards }: { cards: Card[] }) {
                 <tbody className="divide-y divide-border">
                   {pageItems.map((c) => (
                     <tr key={c.student_id} className="hover:bg-ink/[0.02]">
-                      <td className="px-4 py-3 font-medium"><Link href={`/students/${c.student_id}`} className="hover:text-accent hover:underline">{c.full_name}</Link></td>
+                      <td className="px-4 py-3 font-medium">
+                        <Link href={`/students/${c.student_id}`} className="hover:text-accent hover:underline">{c.full_name}</Link>
+                        {newAllocations[c.student_id] && (
+                          <div className="mt-1 flex flex-wrap items-center gap-2">
+                            <NewAllocationBadge assignedAt={newAllocations[c.student_id].assignedAt} />
+                            <MarkSeenButton allocationId={newAllocations[c.student_id].id} />
+                          </div>
+                        )}
+                      </td>
                       <td className="px-4 py-3 text-ink/70">{c.track ?? "—"}</td>
                       <td className="px-4 py-3 text-ink/70">{c.program_name ?? "—"}</td>
                       <td className="px-4 py-3"><StatusBadge status={c.placement_status ?? "awaiting_placement"} /></td>
@@ -123,6 +150,7 @@ export default function PipelineView({ cards }: { cards: Card[] }) {
                     <Link key={c.student_id} href={`/students/${c.student_id}`}
                       className="block rounded-lg border border-border bg-surface p-3 hover:border-brand">
                       <p className="text-sm font-medium">{c.full_name}</p>
+                      {newAllocations[c.student_id] && <div className="my-1"><NewAllocationBadge assignedAt={newAllocations[c.student_id].assignedAt} /></div>}
                       <p className="text-xs text-ink/50">{c.program_name ?? "No program on record"}</p>
                       {c.track && <p className="text-xs text-ink/40">Track: {c.track}</p>}
                       <div className="mt-2"><ReadinessBar green={c.green_count} amber={c.amber_count} red={c.red_count} placementStatus={c.placement_status} /></div>

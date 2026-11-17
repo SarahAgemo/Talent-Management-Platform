@@ -6,20 +6,26 @@ import ErrorPopup, { friendlyErrorMessage } from "./ErrorPopup";
 
 type Comment = { id: string; comment: string; created_at: string; staff_users: { name: string } | null };
 
+const UNREACHABLE_REASON = "Unreachable / offline";
+
 const QUICK_REASONS = [
-  "Unreachable / offline",
+  UNREACHABLE_REASON,
   "No devices - phone/pc",
   "Not interested in work",
   "Other"
 ];
 
-export default function CommentsSection({ studentId, comments, canEdit }: { studentId: string; comments: Comment[]; canEdit: boolean }) {
+export default function CommentsSection({ studentId, comments, canEdit, placementStatus }: { studentId: string; comments: Comment[]; canEdit: boolean; placementStatus?: string | null }) {
   const [reason, setReason] = useState("");
   const [text, setText] = useState("");
   const [saving, setSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const router = useRouter();
   const supabase = createClient();
+
+  // Choosing "Unreachable / offline" also sets the placement status to
+  // Unreachable / Offline (for reporting). A Placed student keeps Placed.
+  const setsUnreachable = reason === UNREACHABLE_REASON && placementStatus !== "placed" && placementStatus !== "unreachable";
 
   function handleReasonChange(value: string) {
     setReason(value);
@@ -41,6 +47,13 @@ export default function CommentsSection({ studentId, comments, canEdit }: { stud
       setErrorMessage("You can't comment on this student — they're allocated to another staff member (or your account doesn't have edit access).");
       return;
     }
+    if (setsUnreachable) {
+      const { data: updated, error: statusError } = await supabase
+        .from("placements").update({ status: "unreachable" }).eq("student_id", studentId).neq("status", "placed").select("id");
+      if (statusError || !updated || updated.length === 0) {
+        setErrorMessage("The comment was saved, but the status couldn't be changed to Unreachable / Offline. Change it in Placement & Employment above.");
+      }
+    }
     setText("");
     setReason("");
     router.refresh();
@@ -57,6 +70,13 @@ export default function CommentsSection({ studentId, comments, canEdit }: { stud
             <option value="">Quick reason (optional)…</option>
             {QUICK_REASONS.map((r) => <option key={r} value={r}>{r}</option>)}
           </select>
+          {reason === UNREACHABLE_REASON && (
+            <p className="text-xs text-accent">
+              {setsUnreachable
+                ? "Posting this will also set the status to Unreachable / Offline."
+                : placementStatus === "placed" ? "This student is Placed, so the status stays Placed." : "The status is already Unreachable / Offline."}
+            </p>
+          )}
           <div className="flex gap-2">
             <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Log a progress update…"
               className="flex-1 rounded-md border border-border px-3 py-2 text-sm" />

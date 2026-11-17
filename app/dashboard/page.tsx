@@ -167,11 +167,16 @@ export default async function DashboardPage({ searchParams }: { searchParams: { 
     : allRows.filter((r) => (r.completion_status === "not_graduated" ? "not_graduated" : "graduated") === completionView);
 
   const { data: staffKpis } = await supabase.from("staff_kpi_overview").select("*").order("staff_name");
+  // Unreachable / Offline students per staff member (empty until the step 2 SQL has been run).
+  const { data: unreachableRows } = await supabase.from("staff_unreachable_overview").select("staff_id, total_unreachable");
+  const unreachableByStaff = new Map((unreachableRows ?? []).map((u: any) => [u.staff_id, u.total_unreachable]));
+  const staffRows = (staffKpis ?? []).map((s: any) => ({ ...s, total_unreachable: unreachableByStaff.get(s.staff_id) ?? 0 }));
 
   const totalPlaced = data.filter((r) => r.placement_status === "placed").length;
   const totalFurtherSkilling = data.filter((r) => r.placement_status === "further_skilling").length;
   const totalDisinterested = data.filter((r) => r.placement_status === "declined_withdrawn").length;
-  const totalUnplaced = data.length - totalPlaced - totalFurtherSkilling - totalDisinterested;
+  const totalUnreachable = data.filter((r) => r.placement_status === "unreachable").length;
+  const totalUnplaced = data.length - totalPlaced - totalFurtherSkilling - totalDisinterested - totalUnreachable;
   const totalLabel = (populationView === "10x" ? "10X participants" : "Participants")
     + (completionView === "graduated" ? " - graduated" : completionView === "not_graduated" ? " - not graduated" : " tracked");
 
@@ -201,20 +206,21 @@ export default async function DashboardPage({ searchParams }: { searchParams: { 
           </div>
         </div>
       </div>
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6">
         <StatCard label={totalLabel} value={data.length}
           sub={completionView === "all" ? `${graduatedCount} graduated · ${notGraduatedCount} not graduated` : undefined} />
         <StatCard label="Placed" value={totalPlaced} tone="success" />
         <StatCard label="Unplaced" value={totalUnplaced} tone="warning" />
         <StatCard label="Further Skilling" value={totalFurtherSkilling} tone="purple" />
         <StatCard label="Disinterested in Work" value={totalDisinterested} tone="danger" />
+        <StatCard label="Unreachable / Offline" value={totalUnreachable} tone="slate" />
       </div>
 
       <div className="rounded-lg border border-border bg-surface p-5">
         <h2 className="font-display text-lg font-semibold text-brand">Staff Accountability Overview</h2>
         <p className="text-xs text-accent">Current snapshot — placed against each staff member's actual caseload right now.</p>
         <div className="mt-3">
-          <StaffAccountabilityTable staffKpis={(staffKpis ?? []) as any} />
+          <StaffAccountabilityTable staffKpis={staffRows as any} />
         </div>
         <Link href="/my-caseload" className="mt-3 inline-block text-sm text-accent hover:underline">View your own caseload &rarr;</Link>
       </div>
@@ -226,9 +232,9 @@ export default async function DashboardPage({ searchParams }: { searchParams: { 
   );
 }
 
-function StatCard({ label, value, tone, sub }: { label: string; value: number; tone?: "success" | "warning" | "purple" | "danger"; sub?: string }) {
-  const color = tone === "success" ? "text-success" : tone === "warning" ? "text-warning" : tone === "purple" ? "text-purple-700 dark:text-purple-300" : tone === "danger" ? "text-danger" : "text-ink";
-  const bar = tone === "success" ? "bg-success" : tone === "warning" ? "bg-warning" : tone === "purple" ? "bg-purple-500 dark:bg-purple-400" : tone === "danger" ? "bg-danger" : "bg-brand";
+function StatCard({ label, value, tone, sub }: { label: string; value: number; tone?: "success" | "warning" | "purple" | "danger" | "slate"; sub?: string }) {
+  const color = tone === "success" ? "text-success" : tone === "warning" ? "text-warning" : tone === "purple" ? "text-purple-700 dark:text-purple-300" : tone === "danger" ? "text-danger" : tone === "slate" ? "text-slate-600 dark:text-slate-300" : "text-ink";
+  const bar = tone === "success" ? "bg-success" : tone === "warning" ? "bg-warning" : tone === "purple" ? "bg-purple-500 dark:bg-purple-400" : tone === "danger" ? "bg-danger" : tone === "slate" ? "bg-slate-400" : "bg-brand";
   return (
     <div className="relative overflow-hidden rounded-lg border border-border bg-surface p-5">
       <span aria-hidden className={`absolute inset-x-0 top-0 h-1 ${bar}`} />

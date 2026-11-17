@@ -412,6 +412,9 @@ function mapStatusAndEmploymentType(raw: string | undefined): { status: string; 
   if (!v) return { status: "awaiting_placement", employmentType: null };
   if (v.includes("back to school") || v === "student") return { status: "further_skilling", employmentType: null };
   if (v.includes("open to work")) return { status: "awaiting_placement", employmentType: null };
+  if (v.includes("unreachable") || v.includes("offline") || v.includes("not reachable")) return { status: "unreachable", employmentType: null };
+  // "Unemployed" / "Unplaced" contain "employ" / "placed" - they must not be read as placed below.
+  if (v.includes("unemploy") || v.includes("not employed") || v.includes("unplaced") || v.includes("not placed")) return { status: "awaiting_placement", employmentType: null };
   if (v.includes("self employ") || v.includes("self-employ")) return { status: "placed", employmentType: "self_employed" };
   if (v.includes("freelanc") || v.includes("gig")) return { status: "placed", employmentType: "freelance" };
   if (v.includes("volunteer")) return { status: "placed", employmentType: "unpaid_internship" };

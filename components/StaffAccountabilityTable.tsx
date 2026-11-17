@@ -9,6 +9,7 @@ type StaffKpi = {
   total_assigned: number;
   total_further_skilling: number;
   total_disinterested: number;
+  total_unreachable?: number;
   total_at_risk: number;
   avg_weeks_to_place: number | null;
 };
@@ -29,6 +30,7 @@ export default function StaffAccountabilityTable({ staffKpis }: { staffKpis: Sta
                   <th className="px-4 py-3">Placed / Allocated</th>
                   <th className="px-4 py-3">Further Skilling / Allocated</th>
                   <th className="px-4 py-3">Disinterested / Allocated</th>
+                  <th className="px-4 py-3">Unreachable / Allocated</th>
                   <th className="px-4 py-3">At Risk</th>
                   <th className="px-4 py-3">Avg Weeks to Place</th>
                 </tr>
@@ -40,6 +42,7 @@ export default function StaffAccountabilityTable({ staffKpis }: { staffKpis: Sta
                     <td className="px-4 py-3">{s.total_placed} / {s.total_assigned}</td>
                     <td className="px-4 py-3">{s.total_further_skilling} / {s.total_assigned}</td>
                     <td className="px-4 py-3">{s.total_disinterested} / {s.total_assigned}</td>
+                    <td className="px-4 py-3">{s.total_unreachable ?? 0} / {s.total_assigned}</td>
                     <td className="px-4 py-3">
                       {s.total_at_risk > 0 ? <span className="status-pill bg-danger/10 text-danger">{s.total_at_risk}</span> : <span className="text-ink/30">0</span>}
                     </td>
@@ -47,7 +50,7 @@ export default function StaffAccountabilityTable({ staffKpis }: { staffKpis: Sta
                   </tr>
                 ))}
                 {pageItems.length === 0 && (
-                  <tr><td colSpan={6} className="px-4 py-6 text-center text-sm text-ink/40">No staff accounts yet.</td></tr>
+                  <tr><td colSpan={7} className="px-4 py-6 text-center text-sm text-ink/40">No staff accounts yet.</td></tr>
                 )}
               </tbody>
             </table>

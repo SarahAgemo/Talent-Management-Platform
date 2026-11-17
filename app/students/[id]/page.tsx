@@ -227,6 +227,7 @@ import SkillsetForm from "@/components/SkillsetForm";
 import ReadinessChecklist from "@/components/ReadinessChecklist";
 import ActivityLog from "@/components/ActivityLog";
 import { RiskBadge } from "@/components/RagBadge";
+import NewAllocationNotice from "@/components/NewAllocationNotice";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
@@ -253,6 +254,13 @@ export default async function StudentProfilePage({ params }: { params: { id: str
     .eq("student_id", params.id);
 
   const isAllocatedToMe = (allocationTrail ?? []).some((a: any) => a.allocation_status === "active" && a.assigned_to === user?.id);
+
+  // "New allocation" marker: the active allocation hasn't been marked as seen
+  // by its coordinator yet (no marker until the step 2 SQL has been run).
+  const { data: newAllocation } = await supabase
+    .from("allocations").select("id, assigned_to, assigned_at")
+    .eq("student_id", params.id).eq("allocation_status", "active").is("seen_at", null)
+    .order("assigned_at", { ascending: false }).limit(1).maybeSingle();
   const canEdit = !isReadOnly && (isAdmin || isAllocatedToMe);
 
   const { data: documents } = await supabase
@@ -295,6 +303,11 @@ export default async function StudentProfilePage({ params }: { params: { id: str
         <span aria-hidden="true">&larr;</span> Return to Student Directory
       </Link>
 
+      {newAllocation && (
+        <NewAllocationNotice allocationId={newAllocation.id} assignedAt={newAllocation.assigned_at}
+          isMine={newAllocation.assigned_to === user?.id} />
+      )}
+
       <div>
         <div className="flex items-center gap-3">
           <h1 className="font-display text-2xl font-semibold text-brand">{student.full_name}</h1>
@@ -317,9 +330,9 @@ export default async function StudentProfilePage({ params }: { params: { id: str
 
       <div className="grid grid-cols-3 gap-6">
         <div className="col-span-2 space-y-6">
-          {placement && <PlacementForm placement={placement} canEdit={canEdit} />}
+          {placement && <PlacementForm placement={placement} canEdit={canEdit} isAdmin={isAdmin} />}
           <CvUpload studentId={params.id} documents={documents ?? []} />
-          <CommentsSection studentId={params.id} comments={(comments ?? []) as any} canEdit={canEdit} />
+          <CommentsSection studentId={params.id} comments={(comments ?? []) as any} canEdit={canEdit} placementStatus={placement?.status ?? null} />
           <ReadinessChecklist studentId={params.id} items={(readinessItems ?? []) as any} />
           <ActivityLog studentId={params.id} entries={(activityEntries ?? []) as any} canEdit={canEdit} />
 
